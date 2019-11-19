@@ -67,7 +67,7 @@ static void pbo_setup(AVFilterLink *inlink) {
   glGenBuffers(INPUT_BUFFERS, gs->pbo_in);
   for(int i = 0; i < INPUT_BUFFERS; i++) {
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gs->pbo_in[i]);
-    glBufferData(GL_PIXEL_UNPACK_BUFFER, inlink->w*inlink->h*1.5, 0, GL_STREAM_DRAW);
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, inlink->w*inlink->h*3, 0, GL_STREAM_DRAW);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
   }
 
@@ -93,7 +93,7 @@ static void tex_setup(AVFilterLink *inlink) {
   AVFilterContext     *ctx = inlink->dst;
   GenericShaderContext *gs = ctx->priv;
 
-  glGenTextures(1, gs->frame_tex);
+  glGenTextures(1, &gs->frame_tex);
   glActiveTexture(GL_TEXTURE0);
 
   glBindTexture(GL_TEXTURE_2D, gs->frame_tex);
