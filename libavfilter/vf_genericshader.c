@@ -190,7 +190,6 @@ static const GLchar *f_matrix_shader_source =
 "}\n";
 
 #define PIXEL_FORMAT GL_RGB
-
 #define FLAGS AV_OPT_FLAG_FILTERING_PARAM|AV_OPT_FLAG_VIDEO_PARAM
 #define MAIN    0
 
@@ -204,15 +203,19 @@ static inline float normalize_power(double d)
 static void eval_expr(AVFilterContext *ctx)
 {
     GenericShaderContext *s = ctx->priv;
+    av_log(ctx, AV_LOG_VERBOSE, "eval_expr\n");
 
     s->var_values[VAR_POWER] = av_expr_eval(s->power_pexpr, s->var_values, NULL);
     s->power = normalize_power(s->var_values[VAR_POWER]);
+    av_log(ctx, AV_LOG_VERBOSE, "eval_expr end\n");
 }
 
 static int set_expr(AVExpr **pexpr, const char *expr, const char *option, void *log_ctx)
 {
     int ret;
     AVExpr *old = NULL;
+
+    av_log(log_ctx, AV_LOG_VERBOSE, "set_expr expr:'%s' option:%s\n", expr, option);
 
     if (*pexpr)
         old = *pexpr;
@@ -227,6 +230,7 @@ static int set_expr(AVExpr **pexpr, const char *expr, const char *option, void *
     }
 
     av_expr_free(old);
+    av_log(log_ctx, AV_LOG_VERBOSE, "set_expr end\n");
     return 0;
 }
 
@@ -235,6 +239,9 @@ static int process_command(AVFilterContext *ctx, const char *cmd, const char *ar
 {
     int ret;
     GenericShaderContext *s = ctx->priv;
+
+    av_log(ctx, AV_LOG_VERBOSE, "process_command cmd:%s args:%s\n",
+           cmd, args);
 
     if (strcmp(cmd, "power") == 0)
         ret = set_expr(&s->power_pexpr, args, cmd, ctx);
@@ -249,23 +256,27 @@ static int process_command(AVFilterContext *ctx, const char *cmd, const char *ar
         av_log(ctx, AV_LOG_VERBOSE, "pow:%f powi:%f\n",
                s->var_values[VAR_POWER], s->power);
     }
+    av_log(ctx, AV_LOG_VERBOSE, "process_command end\n");
     return ret;
 }
 
 static GLuint build_shader(AVFilterContext *ctx, const GLchar *shader_source, GLenum type) {
-  GLint status;
-  GLuint shader = glCreateShader(type);
-  if (!shader || !glIsShader(shader)) {
-    return 0;
-  }
-  glShaderSource(shader, 1, &shader_source, 0);
-  glCompileShader(shader);
-  glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
-  return status == GL_TRUE ? shader : 0;
+    GLint status;
+    GLuint shader = glCreateShader(type);
+    av_log(ctx, AV_LOG_VERBOSE, "build_shader\n");
+    if (!shader || !glIsShader(shader)) {
+        return 0;
+    }
+    glShaderSource(shader, 1, &shader_source, 0);
+    glCompileShader(shader);
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
+    av_log(ctx, AV_LOG_VERBOSE, "build_shader end %d\n", status);
+    return status == GL_TRUE ? shader : 0;
 }
 
-static void vbo_setup(GenericShaderContext *gs) {
+static void vbo_setup(GenericShaderContext *gs, AVFilterContext *log_ctx) {
   GLint loc;
+  av_log(log_ctx, AV_LOG_VERBOSE, "vbo_setup\n");
   glGenBuffers(1, &gs->pos_buf);
   glBindBuffer(GL_ARRAY_BUFFER, gs->pos_buf);
   glBufferData(GL_ARRAY_BUFFER, sizeof(position), position, GL_STATIC_DRAW);
@@ -273,11 +284,13 @@ static void vbo_setup(GenericShaderContext *gs) {
   loc = glGetAttribLocation(gs->program, "position");
   glEnableVertexAttribArray(loc);
   glVertexAttribPointer(loc, 2, GL_FLOAT, GL_FALSE, 0, 0);
+  av_log(log_ctx, AV_LOG_VERBOSE, "vbo_setup end\n");
 }
 
-static void tex_setup(AVFilterLink *inlink) {
+static void tex_setup(AVFilterLink *inlink, AVFilterContext *log_ctx) {
   AVFilterContext     *ctx = inlink->dst;
   GenericShaderContext *gs = ctx->priv;
+  av_log(log_ctx, AV_LOG_VERBOSE, "tex_setup\n");
 
   glGenTextures(1, &gs->frame_tex);
   glActiveTexture(GL_TEXTURE0);
@@ -295,6 +308,7 @@ static void tex_setup(AVFilterLink *inlink) {
     glUniform1f(glGetUniformLocation(gs->program, "power"), 0);
     glUniform1f(glGetUniformLocation(gs->program, "time"), 0);
   }
+  av_log(log_ctx, AV_LOG_VERBOSE, "tex_setup end\n");
 }
 
 static int build_program(AVFilterContext *ctx) {
@@ -302,15 +316,19 @@ static int build_program(AVFilterContext *ctx) {
     GLuint v_shader, f_shader;
     GLchar* shader;
     GenericShaderContext *gs = ctx->priv;
+
+    av_log(ctx, AV_LOG_VERBOSE, "build_program\n");
+
     if (strcmp(gs->shader_style, "matrix")){
-    strcpy(shader, f_matrix_shader_source);
+        strcpy(shader, f_matrix_shader_source);
     } else {
-    strcpy(shader, f_shader_source);
+        strcpy(shader, f_shader_source);
     }
 
     if (!((v_shader = build_shader(ctx, v_shader_source, GL_VERTEX_SHADER)) &&
         (f_shader = build_shader(ctx, shader, GL_FRAGMENT_SHADER)))) {
-    return -1;
+        av_log(ctx, AV_LOG_VERBOSE, "build_program shader build fail\n");
+        return -1;
     }
 
     gs->program = glCreateProgram();
@@ -319,11 +337,13 @@ static int build_program(AVFilterContext *ctx) {
     glLinkProgram(gs->program);
 
     glGetProgramiv(gs->program, GL_LINK_STATUS, &status);
+    av_log(ctx, AV_LOG_VERBOSE, "build_program end %d\n", status);
     return status == GL_TRUE ? 0 : -1;
 }
 
 static av_cold int init(AVFilterContext *ctx) {
     GenericShaderContext *gs = ctx->priv;
+    av_log(ctx, AV_LOG_VERBOSE, "init\n");
     if (!gs->shader_style) {
         av_log(ctx, AV_LOG_ERROR, "Empty output shader style string.\n");
         return AVERROR(EINVAL);
@@ -336,6 +356,8 @@ static int config_props(AVFilterLink *inlink) {
   int ret;
   AVFilterContext     *ctx = inlink->dst;
   GenericShaderContext *gs = ctx->priv;
+
+  av_log(ctx, AV_LOG_VERBOSE, "config_props\n");
 
   glfwWindowHint(GLFW_VISIBLE, 0);
   gs->window = glfwCreateWindow(inlink->w, inlink->h, "", NULL, NULL);
@@ -372,25 +394,27 @@ static int config_props(AVFilterLink *inlink) {
          av_get_pix_fmt_name(ctx->inputs[MAIN]->format));
 
   glUseProgram(gs->program);
-  vbo_setup(gs);
-  tex_setup(inlink);
+  vbo_setup(gs, ctx);
+  tex_setup(inlink, ctx);
 
   return 0;
 }
 
 static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
-  AVFilterContext *ctx     = inlink->dst;
-  AVFilterLink    *outlink = ctx->outputs[0];
-  GenericShaderContext *gs = ctx->priv;
+    AVFilterContext *ctx     = inlink->dst;
+    AVFilterLink    *outlink = ctx->outputs[0];
+    GenericShaderContext *gs = ctx->priv;
 
-  AVFrame *out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
-  if (!out) {
-    av_frame_free(&in);
-    return AVERROR(ENOMEM);
-  }
-  av_frame_copy_props(out, in);
+    av_log(ctx, AV_LOG_VERBOSE, "filter_frame\n");
 
-  if (gs->eval_mode == EVAL_MODE_FRAME) {
+    AVFrame *out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
+    if (!out) {
+        av_frame_free(&in);
+        return AVERROR(ENOMEM);
+    }
+    av_frame_copy_props(out, in);
+
+    if (gs->eval_mode == EVAL_MODE_FRAME) {
       int64_t pos = in->pkt_pos;
 
       gs->var_values[VAR_N] = inlink->frame_count_out;
@@ -403,20 +427,21 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
       eval_expr(ctx);
       av_log(ctx, AV_LOG_VERBOSE, "filter_frame pow:%f powi:%f time:%f\n",
              gs->var_values[VAR_POWER], gs->power, gs->var_values[VAR_T]);
-  }
+    }
 
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, in->data[0]);
-  if (strcmp(gs->shader_style, "matrix")){
-    glUniform1fv(glGetUniformLocation(gs->program, "power"), 1, &gs->power);
-    GLfloat time = (GLfloat)(gs->var_values[VAR_T] == NAN? gs->frame_idx * 330: gs->var_values[VAR_T] / 1000);
-    glUniform1fv(glGetUniformLocation(gs->program, "time"), 1, &time);
-  }
-  glDrawArrays(GL_TRIANGLES, 0, 6);
-  glReadPixels(0, 0, outlink->w, outlink->h, PIXEL_FORMAT, GL_UNSIGNED_BYTE, (GLvoid *)out->data[0]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, in->data[0]);
+    if (strcmp(gs->shader_style, "matrix")){
+        glUniform1fv(glGetUniformLocation(gs->program, "power"), 1, &gs->power);
+        GLfloat time = (GLfloat)(gs->var_values[VAR_T] == NAN? gs->frame_idx * 330: gs->var_values[VAR_T] / 1000);
+        glUniform1fv(glGetUniformLocation(gs->program, "time"), 1, &time);
+    }
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glReadPixels(0, 0, outlink->w, outlink->h, PIXEL_FORMAT, GL_UNSIGNED_BYTE, (GLvoid *)out->data[0]);
 
-  av_frame_free(&in);
-  gs->frame_idx++;
-  return ff_filter_frame(outlink, out);
+    av_frame_free(&in);
+    gs->frame_idx++;
+    av_log(ctx, AV_LOG_VERBOSE, "filter_frame end\n");
+    return ff_filter_frame(outlink, out);
 }
 
 static av_cold void uninit(AVFilterContext *ctx) {
