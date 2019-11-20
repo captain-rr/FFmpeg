@@ -1,4 +1,5 @@
 #include <string.h>
+#include <float.h>
 #include "internal.h"
 
 #include "avfilter.h"
@@ -203,8 +204,8 @@ static int set_expr(AVExpr **pexpr, const char *expr, const char *option, void *
 static int process_command(AVFilterContext *ctx, const char *cmd, const char *args,
                            char *res, int res_len, int flags)
 {
-    GenericShaderContext *s = ctx->priv;
     int ret;
+    GenericShaderContext *s = ctx->priv;
 
     if (strcmp(cmd, "power") == 0)
         ret = set_expr(&s->power_pexpr, args, cmd, ctx);
@@ -223,23 +224,24 @@ static int process_command(AVFilterContext *ctx, const char *cmd, const char *ar
 }
 
 static GLuint build_shader(AVFilterContext *ctx, const GLchar *shader_source, GLenum type) {
+  GLint status;
   GLuint shader = glCreateShader(type);
   if (!shader || !glIsShader(shader)) {
     return 0;
   }
   glShaderSource(shader, 1, &shader_source, 0);
   glCompileShader(shader);
-  GLint status;
   glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
   return status == GL_TRUE ? shader : 0;
 }
 
 static void vbo_setup(GenericShaderContext *gs) {
+  GLint loc;
   glGenBuffers(1, &gs->pos_buf);
   glBindBuffer(GL_ARRAY_BUFFER, gs->pos_buf);
   glBufferData(GL_ARRAY_BUFFER, sizeof(position), position, GL_STATIC_DRAW);
 
-  GLint loc = glGetAttribLocation(gs->program, "position");
+  loc = glGetAttribLocation(gs->program, "position");
   glEnableVertexAttribArray(loc);
   glVertexAttribPointer(loc, 2, GL_FLOAT, GL_FALSE, 0, 0);
 }
@@ -267,28 +269,28 @@ static void tex_setup(AVFilterLink *inlink) {
 }
 
 static int build_program(AVFilterContext *ctx) {
-  GLuint v_shader, f_shader;
-  GenericShaderContext *gs = ctx->priv;
-  char* shader;
-  if (strcmp(gs->shader_style, "matrix")){
-    shader = f_matrix_shader_source;
-  } else {
-    shader = f_shader_source;
-  }
+    GLint status;
+    GLuint v_shader, f_shader;
+    GLchar* shader;
+    GenericShaderContext *gs = ctx->priv;
+    if (strcmp(gs->shader_style, "matrix")){
+    strcpy(shader, f_matrix_shader_source);
+    } else {
+    strcpy(shader, f_shader_source);
+    }
 
-  if (!((v_shader = build_shader(ctx, v_shader_source, GL_VERTEX_SHADER)) &&
+    if (!((v_shader = build_shader(ctx, v_shader_source, GL_VERTEX_SHADER)) &&
         (f_shader = build_shader(ctx, shader, GL_FRAGMENT_SHADER)))) {
     return -1;
-  }
+    }
 
-  gs->program = glCreateProgram();
-  glAttachShader(gs->program, v_shader);
-  glAttachShader(gs->program, f_shader);
-  glLinkProgram(gs->program);
+    gs->program = glCreateProgram();
+    glAttachShader(gs->program, v_shader);
+    glAttachShader(gs->program, f_shader);
+    glLinkProgram(gs->program);
 
-  GLint status;
-  glGetProgramiv(gs->program, GL_LINK_STATUS, &status);
-  return status == GL_TRUE ? 0 : -1;
+    glGetProgramiv(gs->program, GL_LINK_STATUS, &status);
+    return status == GL_TRUE ? 0 : -1;
 }
 
 static av_cold int init(AVFilterContext *ctx) {
@@ -302,13 +304,12 @@ static av_cold int init(AVFilterContext *ctx) {
 }
 
 static int config_props(AVFilterLink *inlink) {
+  int ret;
   AVFilterContext     *ctx = inlink->dst;
   GenericShaderContext *gs = ctx->priv;
-  int ret;
 
   glfwWindowHint(GLFW_VISIBLE, 0);
   gs->window = glfwCreateWindow(inlink->w, inlink->h, "", NULL, NULL);
-
   glfwMakeContextCurrent(gs->window);
 
   #ifndef __APPLE__
@@ -318,8 +319,7 @@ static int config_props(AVFilterLink *inlink) {
 
   glViewport(0, 0, inlink->w, inlink->h);
 
-  int ret;
-  if((ret = build_program(ctx)) < 0) {
+  if ((ret = build_program(ctx)) < 0) {
     return ret;
   }
   gs->var_values[VAR_MAIN_W] = gs->var_values[VAR_MW] = ctx->inputs[MAIN]->w;
@@ -378,9 +378,9 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, in->data[0]);
   if (strcmp(gs->shader_style, "matrix")){
-    glUniform1fv(glGetUniformLocation(gs->program, "power"), 1, gs->power);
+    glUniform1fv(glGetUniformLocation(gs->program, "power"), 1, &gs->power);
     GLfloat time = (GLfloat)(gs->var_values[VAR_T] == NAN? gs->frame_idx * 330: gs->var_values[VAR_T] / 1000);
-    glUniform1fv(glGetUniformLocation(gs->program, "time"), 1, time);
+    glUniform1fv(glGetUniformLocation(gs->program, "time"), 1, &time);
   }
   glDrawArrays(GL_TRIANGLES, 0, 6);
   glReadPixels(0, 0, outlink->w, outlink->h, PIXEL_FORMAT, GL_UNSIGNED_BYTE, (GLvoid *)out->data[0]);
