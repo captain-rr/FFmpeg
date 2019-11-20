@@ -330,7 +330,7 @@ static int build_program(AVFilterContext *ctx) {
     }
     av_log(ctx, AV_LOG_VERBOSE, "build_program_3 %d\n", f_shader);
 
-    if (!(v_shader && f_shader) {
+    if (!(v_shader && f_shader)) {
         av_log(ctx, AV_LOG_VERBOSE, "build_program shader build fail\n");
         return -1;
     }
