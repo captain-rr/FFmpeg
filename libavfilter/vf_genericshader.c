@@ -14,7 +14,6 @@
 #include "libavutil/timestamp.h"
 #include "drawutils.h"
 #include "video.h"
-#include "vf_genericshader.h"
 
 #ifdef __APPLE__
 #include <OpenGL/gl3.h>
@@ -23,6 +22,36 @@
 #endif
 
 #include <GLFW/glfw3.h>
+
+enum var_name {
+    VAR_MAIN_W,    VAR_MW,
+    VAR_MAIN_H,    VAR_MH,
+    VAR_POWER,
+    VAR_N,
+    VAR_POS,
+    VAR_T,
+    VAR_VARS_NB
+};
+
+typedef struct GenericShaderContext {
+    const AVClass *class;
+
+    GLuint        program;
+    GLuint        frame_tex;
+    GLFWwindow    *window;
+    GLuint        pos_buf;
+    char          *shader_style;
+    int           frame_idx;
+
+    float power;
+
+    int eval_mode;              ///< EvalMode
+
+    double var_values[VAR_VARS_NB];
+    char *power_expr;
+
+    AVExpr *power_pexpr;
+} GenericShaderContext;
 
 static const char *const var_names[] = {
     "main_w",    "W", ///< width  of the main    video
