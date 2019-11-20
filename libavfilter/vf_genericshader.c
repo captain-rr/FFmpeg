@@ -317,24 +317,30 @@ static int build_program(AVFilterContext *ctx) {
     GLchar* shader;
     GenericShaderContext *gs = ctx->priv;
 
-    av_log(ctx, AV_LOG_VERBOSE, "build_program\n");
+    av_log(ctx, AV_LOG_VERBOSE, "build_program %s\n", gs->shader_style);
+
+    v_shader = build_shader(ctx, v_shader_source, GL_VERTEX_SHADER);
+    av_log(ctx, AV_LOG_VERBOSE, "build_program_2 %d\n", v_shader);
 
     if (strcmp(gs->shader_style, "matrix")){
+        f_shader = build_shader(ctx, f_matrix_shader_source, GL_FRAGMENT_SHADER);
         strcpy(shader, f_matrix_shader_source);
     } else {
-        strcpy(shader, f_shader_source);
+        f_shader = build_shader(ctx, f_shader_source, GL_FRAGMENT_SHADER);
     }
+    av_log(ctx, AV_LOG_VERBOSE, "build_program_3 %d\n", f_shader);
 
-    if (!((v_shader = build_shader(ctx, v_shader_source, GL_VERTEX_SHADER)) &&
-        (f_shader = build_shader(ctx, shader, GL_FRAGMENT_SHADER)))) {
+    if (!(v_shader && f_shader) {
         av_log(ctx, AV_LOG_VERBOSE, "build_program shader build fail\n");
         return -1;
     }
 
     gs->program = glCreateProgram();
+    av_log(ctx, AV_LOG_VERBOSE, "build_program_4 %d\n", gs->program);
     glAttachShader(gs->program, v_shader);
     glAttachShader(gs->program, f_shader);
     glLinkProgram(gs->program);
+    av_log(ctx, AV_LOG_VERBOSE, "build_program_5\n");
 
     glGetProgramiv(gs->program, GL_LINK_STATUS, &status);
     av_log(ctx, AV_LOG_VERBOSE, "build_program end %d\n", status);
