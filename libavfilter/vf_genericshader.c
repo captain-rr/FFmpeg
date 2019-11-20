@@ -396,7 +396,7 @@ static av_cold void uninit(AVFilterContext *ctx) {
   glDeleteProgram(gs->program);
   glDeleteBuffers(1, &gs->pos_buf);
   glfwDestroyWindow(gs->window);
-  av_expr_free(s->power_pexpr); s->power_pexpr = NULL;
+  av_expr_free(gs->power_pexpr); gs->power_pexpr = NULL;
 }
 
 static int query_formats(AVFilterContext *ctx) {
