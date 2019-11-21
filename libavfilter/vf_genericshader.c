@@ -429,7 +429,7 @@ static int load_textfile(AVFilterContext *ctx, char *textfile, uint8_t **text)
     av_log(ctx, AV_LOG_VERBOSE,
            "load_textfile '%s' 4\n",
            textfile);
-    *text[textbuf_size] = 0;
+    (*text)[textbuf_size] = 0;
     av_file_unmap(textbuf, textbuf_size);
     av_log(ctx, AV_LOG_VERBOSE,
            "load_textfile '%s' 5\n",
