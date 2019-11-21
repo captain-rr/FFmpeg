@@ -702,7 +702,7 @@ static const AVOption genericshader_options[] = {
     { "is_color", "relevant to vintage, specify color mode", OFFSET(is_color), AV_OPT_TYPE_INT, {.i64 = IS_COLOR_MODE_TRUE}, 0, IS_COLOR_MODE_NB-1, FLAGS, "eval" },
              { "true",  "color mode",    0, AV_OPT_TYPE_CONST, {.i64=IS_COLOR_MODE_TRUE},  .flags = FLAGS, .unit = "eval" },
              { "false", "no color mode", 0, AV_OPT_TYPE_CONST, {.i64=IS_COLOR_MODE_FALSE}, .flags = FLAGS, .unit = "eval" },
-    { "drop_size",  "matrix drop size", OFFSET(dropSize), AV_OPT_TYPE_FLOAT, {.dbl=5.0}, 0, 1, FLAGS },
+    { "drop_size",  "matrix drop size", OFFSET(dropSize), AV_OPT_TYPE_FLOAT, {.dbl=5.0}, 0, 100, FLAGS },
     {NULL}
 };
 
