@@ -304,7 +304,7 @@ static void tex_setup(AVFilterLink *inlink, AVFilterContext *log_ctx) {
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, NULL);
 
   glUniform1i(glGetUniformLocation(gs->program, "tex"), 0);
-  if (strcmp(gs->shader_style, "matrix")){
+  if (!strcmp(gs->shader_style, "matrix")){
     glUniform1f(glGetUniformLocation(gs->program, "power"), 0);
     glUniform1f(glGetUniformLocation(gs->program, "time"), 0);
   }
@@ -320,11 +320,12 @@ static int build_program(AVFilterContext *ctx) {
     av_log(ctx, AV_LOG_VERBOSE, "build_program %s\n", gs->shader_style);
 
     v_shader = build_shader(ctx, v_shader_source, GL_VERTEX_SHADER);
-    av_log(ctx, AV_LOG_VERBOSE, "build_program_2 %d\n", v_shader);
 
-    if (strcmp(gs->shader_style, "matrix")){
+    if (!strcmp(gs->shader_style, "matrix")){
+        av_log(ctx, AV_LOG_VERBOSE, "build_program_2_1 %d\n", v_shader);
         f_shader = build_shader(ctx, f_matrix_shader_source, GL_FRAGMENT_SHADER);
     } else {
+        av_log(ctx, AV_LOG_VERBOSE, "build_program_2_2 %d\n", v_shader);
         f_shader = build_shader(ctx, f_shader_source, GL_FRAGMENT_SHADER);
     }
     av_log(ctx, AV_LOG_VERBOSE, "build_program_3 %d\n", f_shader);
@@ -435,9 +436,10 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
     }
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, in->data[0]);
-    if (strcmp(gs->shader_style, "matrix")){
+    if (!strcmp(gs->shader_style, "matrix")){
         glUniform1fv(glGetUniformLocation(gs->program, "power"), 1, &gs->power);
-        GLfloat time = (GLfloat)(gs->var_values[VAR_T] == NAN? gs->frame_idx * 330: gs->var_values[VAR_T] / 1000);
+        GLfloat time = (GLfloat)(gs->var_values[VAR_T] == NAN? gs->frame_idx * 330: gs->var_values[VAR_T] * 1000);
+        av_log(ctx, AV_LOG_VERBOSE, "filter_frame matrix time:%f\n", time);
         glUniform1fv(glGetUniformLocation(gs->program, "time"), 1, &time);
     }
     glDrawArrays(GL_TRIANGLES, 0, 6);
