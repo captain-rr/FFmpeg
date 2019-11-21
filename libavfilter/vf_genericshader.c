@@ -532,6 +532,7 @@ static int build_program(AVFilterContext *ctx) {
 }
 
 static av_cold int init(AVFilterContext *ctx) {
+    int err;
     GenericShaderContext *gs = ctx->priv;
     av_log(ctx, AV_LOG_VERBOSE, "init\n");
     if (gs->vs_textfile) {
