@@ -82,7 +82,7 @@ static const GLchar *v_shader_source =
   "attribute vec2 position;\n"
   "varying vec2 texCoord;\n"
   "void main(void) {\n"
-  "  gl_Position = vec4(position, 0, 1);\n"
+  "  gl_Position = vec4(position* 0.5 + 0.5, 0, 1);\n"
   "  texCoord = position;\n"
   "}\n";
 
@@ -90,7 +90,7 @@ static const GLchar *f_shader_source =
   "varying vec2 texCoord;\n"
   "uniform sampler2D tex;\n"
   "void main() {\n"
-  "  gl_FragColor = texture2D(tex, texCoord * 0.5 + 0.5);\n"
+  "  gl_FragColor = texture2D(tex, texCoord);\n"
   "}\n";
 
 // thanks to raja https://www.shadertoy.com/view/lsXSDn
@@ -114,12 +114,12 @@ static const GLchar *f_matrix_shader_source =
 "}\n"
 
 "varying vec2 texCoord;\n"
-"uniform sampler2D uSampler;\n"
+"uniform sampler2D tex;\n"
 "uniform float power;\n"
 "uniform float time;\n"
 
 "void main() {\n"
-"    vec4 originalColor = texture2D(uSampler, texCoord);\n"
+"    vec4 originalColor = texture2D(tex, texCoord);\n"
 "    float globalTime = time * RAIN_SPEED + 34284.0;\n"
 "    vec2 position = - texCoord;\n"
 "    vec2 res = vec2(700,300);\n"
