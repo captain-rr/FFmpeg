@@ -324,7 +324,6 @@ static int build_program(AVFilterContext *ctx) {
 
     if (strcmp(gs->shader_style, "matrix")){
         f_shader = build_shader(ctx, f_matrix_shader_source, GL_FRAGMENT_SHADER);
-        strcpy(shader, f_matrix_shader_source);
     } else {
         f_shader = build_shader(ctx, f_shader_source, GL_FRAGMENT_SHADER);
     }
