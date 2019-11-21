@@ -5,6 +5,7 @@
 #include "avfilter.h"
 #include "formats.h"
 #include "libavutil/common.h"
+#include "libavutil/file.h"
 #include "libavutil/eval.h"
 #include "libavutil/avstring.h"
 #include "libavutil/pixdesc.h"
@@ -43,14 +44,17 @@ typedef struct GenericShaderContext {
     char          *shader_style;
     int           frame_idx;
 
-    float power;
-
-    int eval_mode;              ///< EvalMode
     int is_color; // for vintage filter
 
-    double var_values[VAR_VARS_NB];
-    char *power_expr;
+    char *vs_textfile;
+    uint8_t *vs_text;
+    char *fs_textfile;
+    uint8_t *fs_text;
 
+    int eval_mode;              ///< EvalMode
+    double var_values[VAR_VARS_NB];
+    float power;
+    char *power_expr;
     AVExpr *power_pexpr;
 } GenericShaderContext;
 
@@ -74,7 +78,7 @@ enum IsColorMode {
     IS_COLOR_MODE_TRUE,
     IS_COLOR_MODE_FALSE,
     IS_COLOR_MODE_NB
-}
+};
 
 static const float position[12] = {
   -1.0f, -1.0f,  //A
@@ -389,6 +393,36 @@ static int process_command(AVFilterContext *ctx, const char *cmd, const char *ar
     return ret;
 }
 
+static int load_textfile(AVFilterContext *ctx, char *textfile, uint8_t **text)
+{
+    int err;
+    uint8_t *textbuf;
+    uint8_t *tmp;
+    size_t textbuf_size;
+
+    if ((err = av_file_map(textfile, &textbuf, &textbuf_size, 0, ctx)) < 0) {
+        av_log(ctx, AV_LOG_ERROR,
+               "The text file '%s' could not be read or is empty\n",
+               textfile);
+        return err;
+    }
+
+    if (textbuf_size > SIZE_MAX - 1 ||
+        !(tmp = av_realloc(*text, textbuf_size + 1))) {
+        av_file_unmap(textbuf, textbuf_size);
+        av_log(ctx, AV_LOG_ERROR,
+               "The text file '%s' created buffer size issue\n",
+               textfile);
+        return AVERROR(ENOMEM);
+    }
+    *text = tmp;
+    memcpy(*text, textbuf, textbuf_size);
+    *text[textbuf_size] = 0;
+    av_file_unmap(textbuf, textbuf_size);
+
+    return 0;
+}
+
 static GLuint build_shader(AVFilterContext *ctx, const GLchar *shader_source, GLenum type) {
     GLint status;
     GLuint shader = glCreateShader(type);
@@ -454,9 +488,17 @@ static int build_program(AVFilterContext *ctx) {
 
     av_log(ctx, AV_LOG_VERBOSE, "build_program %s\n", gs->shader_style);
 
-    v_shader = build_shader(ctx, v_shader_source, GL_VERTEX_SHADER);
+    if (gs->vs_text){
+        av_log(ctx, AV_LOG_VERBOSE, "build_program vs_from_text ||%s||\n", gs->vs_text);
+        v_shader = build_shader(ctx, (GLchar*)gs->vs_text, GL_VERTEX_SHADER);
+    } else {
+        v_shader = build_shader(ctx, v_shader_source, GL_VERTEX_SHADER);
+    }
 
-    if (!strcmp(gs->shader_style, "matrix")){
+    if (gs->fs_text){
+        av_log(ctx, AV_LOG_VERBOSE, "build_program_2_s %d ||%s||\n", v_shader, gs->fs_text);
+        f_shader = build_shader(ctx, (GLchar*)gs->fs_text, GL_FRAGMENT_SHADER);
+    } else if (!strcmp(gs->shader_style, "matrix")){
         av_log(ctx, AV_LOG_VERBOSE, "build_program_2_1 %d\n", v_shader);
         f_shader = build_shader(ctx, f_matrix_shader_source, GL_FRAGMENT_SHADER);
     } else if (!strcmp(gs->shader_style, "shockwave")) {
@@ -492,6 +534,16 @@ static int build_program(AVFilterContext *ctx) {
 static av_cold int init(AVFilterContext *ctx) {
     GenericShaderContext *gs = ctx->priv;
     av_log(ctx, AV_LOG_VERBOSE, "init\n");
+    if (gs->vs_textfile) {
+        av_log(ctx, AV_LOG_VERBOSE, "attempt load text file for vertex shader '%s'\n", gs->vs_textfile);
+        if ((err = load_textfile(ctx, gs->vs_textfile, &gs->vs_text)) < 0)
+            return err;
+    }
+    if (gs->fs_textfile) {
+        av_log(ctx, AV_LOG_VERBOSE, "attempt load text file for fragment shader '%s'\n", gs->fs_textfile);
+        if ((err = load_textfile(ctx, gs->fs_textfile, &gs->fs_text)) < 0)
+            return err;
+    }
     if (!gs->shader_style) {
         av_log(ctx, AV_LOG_ERROR, "Empty output shader style string.\n");
         return AVERROR(EINVAL);
@@ -621,6 +673,8 @@ static int query_formats(AVFilterContext *ctx) {
 
 #define OFFSET(x) offsetof(GenericShaderContext, x)
 static const AVOption genericshader_options[] = {
+    {"vs_textfile",    "set a text file for vertex shader",        OFFSET(vs_textfile),           AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX, FLAGS},
+    {"fs_textfile",    "set a text file for fragment shader",      OFFSET(fs_textfile),           AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX, FLAGS},
     { "power", "set the power expression", OFFSET(power_expr), AV_OPT_TYPE_STRING, {.str = "0"}, CHAR_MIN, CHAR_MAX, FLAGS },
     { "shader_style", "set the shader", OFFSET(shader_style), AV_OPT_TYPE_STRING, {.str = "0"}, CHAR_MIN, CHAR_MAX, FLAGS },
     { "eval", "specify when to evaluate expressions", OFFSET(eval_mode), AV_OPT_TYPE_INT, {.i64 = EVAL_MODE_FRAME}, 0, EVAL_MODE_NB-1, FLAGS, "eval" },
