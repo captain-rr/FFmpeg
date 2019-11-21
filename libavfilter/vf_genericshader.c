@@ -46,6 +46,8 @@ typedef struct GenericShaderContext {
 
     int is_color; // for vintage filter
 
+    float dropSize; // for matrix filter
+
     char *vs_textfile;
     uint8_t *vs_text;
     char *fs_textfile;
@@ -250,6 +252,7 @@ static const GLchar *f_matrix_shader_source =
 "uniform sampler2D tex;\n"
 "uniform float power;\n"
 "uniform float time;\n"
+"uniform float dropSize;\n"
 
 "void main() {\n"
 "    vec4 originalColor = texture2D(tex, texCoord);\n"
@@ -257,7 +260,7 @@ static const GLchar *f_matrix_shader_source =
 "    vec2 position = - texCoord;\n"
 "    vec2 res = vec2(700,300);\n"
 "    position.x /= res.x / res.y;\n"
-"    float scaledown = DROP_SIZE;\n"
+"    float scaledown = dropSize;\n"
 "    float rx = texCoord.x * res.x / (40.0 * scaledown);\n"
 "    float mx = 40.0*scaledown*fract(position.x * 30.0 * scaledown);\n"
 "    vec4 result;\n"
@@ -288,7 +291,7 @@ static const GLchar *f_matrix_shader_source =
 
 "    position.x += 0.05;\n"
 
-"    scaledown = DROP_SIZE;\n"
+"    scaledown = dropSize;\n"
 "    rx = texCoord.x * res.x / (40.0 * scaledown);\n"
 "    mx = 40.0*scaledown*fract(position.x * 30.0 * scaledown);\n"
 
@@ -406,6 +409,9 @@ static int load_textfile(AVFilterContext *ctx, char *textfile, uint8_t **text)
                textfile);
         return err;
     }
+    av_log(ctx, AV_LOG_VERBOSE,
+           "load_textfile '%s' 2\n",
+           textfile);
 
     if (textbuf_size > SIZE_MAX - 1 ||
         !(tmp = av_realloc(*text, textbuf_size + 1))) {
@@ -415,10 +421,19 @@ static int load_textfile(AVFilterContext *ctx, char *textfile, uint8_t **text)
                textfile);
         return AVERROR(ENOMEM);
     }
+    av_log(ctx, AV_LOG_VERBOSE,
+           "load_textfile '%s' 3\n",
+           textfile);
     *text = tmp;
     memcpy(*text, textbuf, textbuf_size);
+    av_log(ctx, AV_LOG_VERBOSE,
+           "load_textfile '%s' 4\n",
+           textfile);
     *text[textbuf_size] = 0;
     av_file_unmap(textbuf, textbuf_size);
+    av_log(ctx, AV_LOG_VERBOSE,
+           "load_textfile '%s' 5\n",
+           textfile);
 
     return 0;
 }
@@ -470,6 +485,7 @@ static void tex_setup(AVFilterLink *inlink, AVFilterContext *log_ctx) {
     if (!strcmp(gs->shader_style, "matrix")){
         glUniform1f(glGetUniformLocation(gs->program, "power"), 0);
         glUniform1f(glGetUniformLocation(gs->program, "time"), 0);
+        glUniform1f(glGetUniformLocation(gs->program, "dropSize"), 0);
     } else if (!strcmp(gs->shader_style, "shockwave")){
         glUniform1f(glGetUniformLocation(gs->program, "power"), 0);
         glUniform1f(glGetUniformLocation(gs->program, "time"), 0);
@@ -634,8 +650,10 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
     if (!strcmp(gs->shader_style, "matrix")){
         glUniform1fv(glGetUniformLocation(gs->program, "power"), 1, &gs->power);
         GLfloat time = (GLfloat)(gs->var_values[VAR_T] == NAN? gs->frame_idx * 330: gs->var_values[VAR_T] * 1000);
-        av_log(ctx, AV_LOG_VERBOSE, "filter_frame matrix time:%f\n", time);
+        GLfloat dropSize = (GLfloat)gs->dropSize;
+        av_log(ctx, AV_LOG_VERBOSE, "filter_frame matrix time:%f dropSize:%f\n", time, dropSize);
         glUniform1fv(glGetUniformLocation(gs->program, "time"), 1, &time);
+        glUniform1fv(glGetUniformLocation(gs->program, "dropSize"), 1, &dropSize);
     } else if (!strcmp(gs->shader_style, "shockwave")){
         glUniform1fv(glGetUniformLocation(gs->program, "power"), 1, &gs->power);
         GLfloat time = (GLfloat)(gs->var_values[VAR_T] == NAN? gs->frame_idx * 1.6667: gs->var_values[VAR_T] * 5);
@@ -684,6 +702,7 @@ static const AVOption genericshader_options[] = {
     { "is_color", "relevant to vintage, specify color mode", OFFSET(is_color), AV_OPT_TYPE_INT, {.i64 = IS_COLOR_MODE_TRUE}, 0, IS_COLOR_MODE_NB-1, FLAGS, "eval" },
              { "true",  "color mode",    0, AV_OPT_TYPE_CONST, {.i64=IS_COLOR_MODE_TRUE},  .flags = FLAGS, .unit = "eval" },
              { "false", "no color mode", 0, AV_OPT_TYPE_CONST, {.i64=IS_COLOR_MODE_FALSE}, .flags = FLAGS, .unit = "eval" },
+    { "drop_size",  "matrix drop size", OFFSET(dropSize), AV_OPT_TYPE_FLOAT, {.dbl=5.0}, 0, 1, FLAGS },
     {NULL}
 };
 
