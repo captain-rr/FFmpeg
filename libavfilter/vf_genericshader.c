@@ -549,6 +549,7 @@ static int build_program(AVFilterContext *ctx) {
 
 static av_cold int init(AVFilterContext *ctx) {
     int err;
+    int status;
     GenericShaderContext *gs = ctx->priv;
     av_log(ctx, AV_LOG_VERBOSE, "init\n");
     if (gs->vs_textfile) {
@@ -566,7 +567,9 @@ static av_cold int init(AVFilterContext *ctx) {
         return AVERROR(EINVAL);
     }
 
-    return glfwInit() ? 0 : -1;
+    status = glfwInit();
+    av_log(ctx, AV_LOG_VERBOSE, "GLFW init status:%d\n", status);
+    return status? 0 : -1;
 }
 
 static int config_props(AVFilterLink *inlink) {
@@ -678,6 +681,8 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 
 static av_cold void uninit(AVFilterContext *ctx) {
   GenericShaderContext *gs = ctx->priv;
+  av_log(ctx, AV_LOG_VERBOSE, "uninit\n");
+
   glDeleteTextures(1, &gs->frame_tex);
   glDeleteProgram(gs->program);
   glDeleteBuffers(1, &gs->pos_buf);
@@ -686,8 +691,12 @@ static av_cold void uninit(AVFilterContext *ctx) {
 }
 
 static int query_formats(AVFilterContext *ctx) {
-  static const enum AVPixelFormat formats[] = {AV_PIX_FMT_RGB24, AV_PIX_FMT_NONE};
-  return ff_set_common_formats(ctx, ff_make_format_list(formats));
+    int ret;
+    static const enum AVPixelFormat formats[] = {AV_PIX_FMT_RGB24, AV_PIX_FMT_NONE};
+    av_log(ctx, AV_LOG_VERBOSE, "query_formats\n");
+    ret = ff_set_common_formats(ctx, ff_make_format_list(formats));
+    av_log(ctx, AV_LOG_VERBOSE, "query_formats ret:%d\n", ret);
+    return ret;
 }
 
 #define OFFSET(x) offsetof(GenericShaderContext, x)
