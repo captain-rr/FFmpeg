@@ -677,12 +677,16 @@ AVFilterContext *ff_filter_alloc(const AVFilter *filter, const char *inst_name)
     ret->name     = inst_name ? av_strdup(inst_name) : NULL;
     if (filter->priv_size) {
         ret->priv     = av_mallocz(filter->priv_size);
-        if (!ret->priv)
+        if (!ret->priv){
+            av_log(ret, AV_LOG_ERROR, "ff_filter_alloc fail 1\n");
             goto err;
+        }
     }
     if (filter->preinit) {
-        if (filter->preinit(ret) < 0)
+        if (filter->preinit(ret) < 0){
+            av_log(ret, AV_LOG_ERROR, "ff_filter_alloc fail 2\n");
             goto err;
+        }
         preinited = 1;
     }
 
@@ -693,30 +697,40 @@ AVFilterContext *ff_filter_alloc(const AVFilter *filter, const char *inst_name)
     }
 
     ret->internal = av_mallocz(sizeof(*ret->internal));
-    if (!ret->internal)
-        goto err;
+    if (!ret->internal){
+         av_log(ret, AV_LOG_ERROR, "ff_filter_alloc fail 3\n");
+         goto err;
+    }
     ret->internal->execute = default_execute;
 
     ret->nb_inputs = avfilter_pad_count(filter->inputs);
     if (ret->nb_inputs ) {
         ret->input_pads   = av_malloc_array(ret->nb_inputs, sizeof(AVFilterPad));
-        if (!ret->input_pads)
+        if (!ret->input_pads){
+            av_log(ret, AV_LOG_ERROR, "ff_filter_alloc fail 4\n");
             goto err;
+        }
         memcpy(ret->input_pads, filter->inputs, sizeof(AVFilterPad) * ret->nb_inputs);
         ret->inputs       = av_mallocz_array(ret->nb_inputs, sizeof(AVFilterLink*));
-        if (!ret->inputs)
+        if (!ret->inputs){
+            av_log(ret, AV_LOG_ERROR, "ff_filter_alloc fail 5\n");
             goto err;
+        }
     }
 
     ret->nb_outputs = avfilter_pad_count(filter->outputs);
     if (ret->nb_outputs) {
         ret->output_pads  = av_malloc_array(ret->nb_outputs, sizeof(AVFilterPad));
-        if (!ret->output_pads)
+        if (!ret->output_pads){
+            av_log(ret, AV_LOG_ERROR, "ff_filter_alloc fail 6\n");
             goto err;
+        }
         memcpy(ret->output_pads, filter->outputs, sizeof(AVFilterPad) * ret->nb_outputs);
         ret->outputs      = av_mallocz_array(ret->nb_outputs, sizeof(AVFilterLink*));
-        if (!ret->outputs)
+        if (!ret->outputs){
+            av_log(ret, AV_LOG_ERROR, "ff_filter_alloc fail 7\n");
             goto err;
+        }
     }
 
     return ret;

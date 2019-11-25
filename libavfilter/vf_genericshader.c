@@ -684,10 +684,17 @@ static av_cold void uninit(AVFilterContext *ctx) {
   av_log(ctx, AV_LOG_VERBOSE, "uninit\n");
 
   glDeleteTextures(1, &gs->frame_tex);
+  av_log(ctx, AV_LOG_VERBOSE, "uninit1\n");
   glDeleteProgram(gs->program);
+  av_log(ctx, AV_LOG_VERBOSE, "uninit2\n");
   glDeleteBuffers(1, &gs->pos_buf);
+  av_log(ctx, AV_LOG_VERBOSE, "uninit3\n");
   glfwDestroyWindow(gs->window);
-  av_expr_free(gs->power_pexpr); gs->power_pexpr = NULL;
+  av_log(ctx, AV_LOG_VERBOSE, "uninit4\n");
+  av_expr_free(gs->power_pexpr);
+  av_log(ctx, AV_LOG_VERBOSE, "uninit5\n");
+  gs->power_pexpr = NULL;
+  av_log(ctx, AV_LOG_VERBOSE, "uninit6\n");
 }
 
 static int query_formats(AVFilterContext *ctx) {

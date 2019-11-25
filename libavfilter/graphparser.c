@@ -146,6 +146,7 @@ static int create_filter(AVFilterContext **filt_ctx, AVFilterGraph *ctx, int ind
             args = ctx->scale_sws_opts;
     }
 
+    av_log(log_ctx, AV_LOG_VERBOSE, "create_filter\n");
     ret = avfilter_init_str(*filt_ctx, args);
     if (ret < 0) {
         av_log(log_ctx, AV_LOG_ERROR,
