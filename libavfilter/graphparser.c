@@ -425,16 +425,24 @@ int avfilter_graph_parse2(AVFilterGraph *graph, const char *filters,
 
         if ((ret = parse_inputs(&filters, &curr_inputs, &open_outputs, graph)) < 0)
             goto end;
-        if ((ret = parse_filter(&filter, &filters, graph, index, graph)) < 0)
+
+        av_log(graph, AV_LOG_VERBOSE, "avfilter_graph_parse2\n");
+        if ((ret = parse_filter(&filter, &filters, graph, index, graph)) < 0){
+            av_log(graph, AV_LOG_ERROR, "avfilter_graph_parse2 1 %d\n", ret);
             goto end;
+        }
 
 
-        if ((ret = link_filter_inouts(filter, &curr_inputs, &open_inputs, graph)) < 0)
+        if ((ret = link_filter_inouts(filter, &curr_inputs, &open_inputs, graph)) < 0){
+            av_log(graph, AV_LOG_ERROR, "avfilter_graph_parse2 2 %d\n", ret);
             goto end;
+        }
 
         if ((ret = parse_outputs(&filters, &curr_inputs, &open_inputs, &open_outputs,
-                                 graph)) < 0)
+                                 graph)) < 0){
+            av_log(graph, AV_LOG_ERROR, "avfilter_graph_parse2 3 %d\n", ret);
             goto end;
+        }
 
         filters += strspn(filters, WHITESPACES);
         chr = *filters++;
@@ -558,22 +566,32 @@ int avfilter_graph_parse_ptr(AVFilterGraph *graph, const char *filters,
         if ((ret = parse_inputs(&filters, &curr_inputs, &open_outputs, log_ctx)) < 0)
             goto end;
 
-        if ((ret = parse_filter(&filter, &filters, graph, index, log_ctx)) < 0)
+
+        av_log(log_ctx, AV_LOG_VERBOSE, "avfilter_graph_parse_ptr\n");
+        if ((ret = parse_filter(&filter, &filters, graph, index, log_ctx)) < 0){
+            av_log(log_ctx, AV_LOG_ERROR, "avfilter_graph_parse_ptr 1 %d\n", ret);
             goto end;
+        }
 
         if (filter->nb_inputs == 1 && !curr_inputs && !index) {
             /* First input pad, assume it is "[in]" if not specified */
             const char *tmp = "[in]";
-            if ((ret = parse_inputs(&tmp, &curr_inputs, &open_outputs, log_ctx)) < 0)
+            if ((ret = parse_inputs(&tmp, &curr_inputs, &open_outputs, log_ctx)) < 0){
+                av_log(log_ctx, AV_LOG_ERROR, "avfilter_graph_parse_ptr 2 %d\n", ret);
                 goto end;
+            }
         }
 
-        if ((ret = link_filter_inouts(filter, &curr_inputs, &open_inputs, log_ctx)) < 0)
+        if ((ret = link_filter_inouts(filter, &curr_inputs, &open_inputs, log_ctx)) < 0){
+            av_log(log_ctx, AV_LOG_ERROR, "avfilter_graph_parse_ptr 3 %d\n", ret);
             goto end;
+        }
 
         if ((ret = parse_outputs(&filters, &curr_inputs, &open_inputs, &open_outputs,
-                                 log_ctx)) < 0)
+                                 log_ctx)) < 0){
+            av_log(log_ctx, AV_LOG_ERROR, "avfilter_graph_parse_ptr 4 %d\n", ret);
             goto end;
+        }
 
         filters += strspn(filters, WHITESPACES);
         chr = *filters++;
