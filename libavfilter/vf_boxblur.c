@@ -45,6 +45,7 @@ typedef struct BoxBlurContext {
     int radius[4];
     int power[4];
     uint8_t *temp[2]; ///< temporary buffer used in blur_power()
+    int hasTemporalExpressions;
 } BoxBlurContext;
 
 static av_cold void uninit(AVFilterContext *ctx)
@@ -88,9 +89,11 @@ static int config_input(AVFilterLink *inlink)
     s->vsub = desc->log2_chroma_h;
 
     ret = ff_boxblur_eval_filter_params(inlink,
+                                        (AVFrame *)0,
                                         &s->luma_param,
                                         &s->chroma_param,
-                                        &s->alpha_param);
+                                        &s->alpha_param,
+                                        &s->hasTemporalExpressions);
 
     if (ret != 0) {
         av_log(ctx, AV_LOG_ERROR, "Failed to evaluate "
@@ -231,6 +234,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     AVFilterLink *outlink = inlink->dst->outputs[0];
     AVFrame *out;
     int plane;
+    int ret;
     int cw = AV_CEIL_RSHIFT(inlink->w, s->hsub), ch = AV_CEIL_RSHIFT(in->height, s->vsub);
     int w[4] = { inlink->w, cw, cw, inlink->w };
     int h[4] = { in->height, ch, ch, in->height };
@@ -244,6 +248,27 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
         return AVERROR(ENOMEM);
     }
     av_frame_copy_props(out, in);
+    if (s->hasTemporalExpressions){
+        ret = ff_boxblur_eval_filter_params(inlink,
+                                      in,
+                                      &s->luma_param,
+                                      &s->chroma_param,
+                                      &s->alpha_param,
+                                      &s->hasTemporalExpressions);
+        if (ret != 0) {
+            av_log(ctx, AV_LOG_ERROR, "Failed to evaluate "
+                   "filter params: %d.\n", ret);
+            return ret;
+        }
+
+        s->radius[Y] = s->luma_param.radius;
+        s->radius[U] = s->radius[V] = s->chroma_param.radius;
+        s->radius[A] = s->alpha_param.radius;
+
+        s->power[Y] = s->luma_param.power;
+        s->power[U] = s->power[V] = s->chroma_param.power;
+        s->power[A] = s->alpha_param.power;
+    }
 
     for (plane = 0; plane < 4 && in->data[plane] && in->linesize[plane]; plane++)
         hblur(out->data[plane], out->linesize[plane],

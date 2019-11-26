@@ -113,9 +113,11 @@ static int boxblur_opencl_make_filter_params(AVFilterLink *inlink)
     int err, i;
 
     err = ff_boxblur_eval_filter_params(inlink,
+                                        (AVFrame *)0,
                                         &s->luma_param,
                                         &s->chroma_param,
-                                        &s->alpha_param);
+                                        &s->alpha_param,
+                                        (int *)0);
 
     if (err != 0) {
         av_log(ctx, AV_LOG_ERROR, "Failed to evaluate "
