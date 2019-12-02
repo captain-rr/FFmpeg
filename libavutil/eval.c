@@ -223,28 +223,28 @@ static double eval_expr(Parser *p, AVExpr *e)
             double v1 = eval_expr(p, e->param[1]);
             double f  = eval_expr(p, e->param[2]);
             return v0 + (v1 - v0) * f;
-        },
+        }
         case e_easein_sine: {
             double t = eval_expr(p, e->param[0]);
             double b = eval_expr(p, e->param[1]);
             double c  = eval_expr(p, e->param[2]);
             double d  = eval_expr(p, e->param[3]);
             return -c * cos(t/d * (M_PI/2)) + c + b;
-        },
+        }
         case e_easeout_sine: {
             double t = eval_expr(p, e->param[0]);
             double b = eval_expr(p, e->param[1]);
             double c  = eval_expr(p, e->param[2]);
             double d  = eval_expr(p, e->param[3]);
             return c * sin(t/d * (M_PI/2)) + b;
-        },
+        }
         case e_easeinout_sine: {
             double t = eval_expr(p, e->param[0]);
             double b = eval_expr(p, e->param[1]);
             double c  = eval_expr(p, e->param[2]);
             double d  = eval_expr(p, e->param[3]);
             return -c/2 * (cos(M_PI*t/d) - 1) + b;
-        },
+        }
         case e_easein_quart: {
             double t = eval_expr(p, e->param[0]);
             double b = eval_expr(p, e->param[1]);
@@ -252,7 +252,7 @@ static double eval_expr(Parser *p, AVExpr *e)
             double d  = eval_expr(p, e->param[3]);
             t /= d;
             return c*t*t*t*t + b;
-        },
+        }
         case e_easeout_quart: {
             double t = eval_expr(p, e->param[0]);
             double b = eval_expr(p, e->param[1]);
@@ -261,7 +261,7 @@ static double eval_expr(Parser *p, AVExpr *e)
             t /= d;
             t--;
             return -c * (t*t*t*t - 1) + b;
-        },
+        }
         case e_easeinout_quart: {
             double t = eval_expr(p, e->param[0]);
             double b = eval_expr(p, e->param[1]);
@@ -272,7 +272,7 @@ static double eval_expr(Parser *p, AVExpr *e)
                 return c/2*t*t*t*t + b;
             t -= 2;
             return -c/2 * (t*t*t*t - 2) + b;
-        },
+        }
         case e_print: {
             double x = eval_expr(p, e->param[0]);
             int level = e->param[1] ? av_clip(eval_expr(p, e->param[1]), INT_MIN, INT_MAX) : AV_LOG_INFO;
