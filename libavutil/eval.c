@@ -163,7 +163,8 @@ struct AVExpr {
         e_last, e_st, e_while, e_taylor, e_root, e_floor, e_ceil, e_trunc, e_round,
         e_sqrt, e_not, e_random, e_hypot, e_gcd,
         e_if, e_ifnot, e_print, e_bitand, e_bitor, e_between, e_clip, e_atan2, e_lerp,
-        e_sgn,
+        e_sgn, e_easein_sine, e_easeout_sine, e_easeinout_sine,
+        e_easein_quart, e_easeout_quart, e_easeinout_quart,
     } type;
     double value; // is sign in other types
     union {
@@ -222,7 +223,56 @@ static double eval_expr(Parser *p, AVExpr *e)
             double v1 = eval_expr(p, e->param[1]);
             double f  = eval_expr(p, e->param[2]);
             return v0 + (v1 - v0) * f;
-        }
+        },
+        case e_easein_sine: {
+            double t = eval_expr(p, e->param[0]);
+            double b = eval_expr(p, e->param[1]);
+            double c  = eval_expr(p, e->param[2]);
+            double d  = eval_expr(p, e->param[3]);
+            return -c * cos(t/d * (M_PI/2)) + c + b;
+        },
+        case e_easeout_sine: {
+            double t = eval_expr(p, e->param[0]);
+            double b = eval_expr(p, e->param[1]);
+            double c  = eval_expr(p, e->param[2]);
+            double d  = eval_expr(p, e->param[3]);
+            return c * sin(t/d * (M_PI/2)) + b;
+        },
+        case e_easeinout_sine: {
+            double t = eval_expr(p, e->param[0]);
+            double b = eval_expr(p, e->param[1]);
+            double c  = eval_expr(p, e->param[2]);
+            double d  = eval_expr(p, e->param[3]);
+            return -c/2 * (cos(M_PI*t/d) - 1) + b;
+        },
+        case e_easein_quart: {
+            double t = eval_expr(p, e->param[0]);
+            double b = eval_expr(p, e->param[1]);
+            double c  = eval_expr(p, e->param[2]);
+            double d  = eval_expr(p, e->param[3]);
+            t /= d;
+            return c*t*t*t*t + b;
+        },
+        case e_easeout_quart: {
+            double t = eval_expr(p, e->param[0]);
+            double b = eval_expr(p, e->param[1]);
+            double c  = eval_expr(p, e->param[2]);
+            double d  = eval_expr(p, e->param[3]);
+            t /= d;
+            t--;
+            return -c * (t*t*t*t - 1) + b;
+        },
+        case e_easeinout_quart: {
+            double t = eval_expr(p, e->param[0]);
+            double b = eval_expr(p, e->param[1]);
+            double c  = eval_expr(p, e->param[2]);
+            double d  = eval_expr(p, e->param[3]);
+            t /= d/2;
+            if (t < 1)
+                return c/2*t*t*t*t + b;
+            t -= 2;
+            return -c/2 * (t*t*t*t - 2) + b;
+        },
         case e_print: {
             double x = eval_expr(p, e->param[0]);
             int level = e->param[1] ? av_clip(eval_expr(p, e->param[1]), INT_MIN, INT_MAX) : AV_LOG_INFO;
@@ -473,6 +523,12 @@ static int parse_primary(AVExpr **e, Parser *p)
     else if (strmatch(next, "atan2" )) d->type = e_atan2;
     else if (strmatch(next, "lerp"  )) d->type = e_lerp;
     else if (strmatch(next, "sgn"   )) d->type = e_sgn;
+    else if (strmatch(next, "ease_is"  )) d->type = e_easein_sine;
+    else if (strmatch(next, "ease_os"  )) d->type = e_easeout_sine;
+    else if (strmatch(next, "ease_ios" )) d->type = e_easeinout_sine;
+    else if (strmatch(next, "ease_iq"  )) d->type = e_easein_quart;
+    else if (strmatch(next, "ease_oq"  )) d->type = e_easeout_quart;
+    else if (strmatch(next, "ease_ioq" )) d->type = e_easeinout_quart;
     else {
         for (i=0; p->func1_names && p->func1_names[i]; i++) {
             if (strmatch(next, p->func1_names[i])) {
@@ -676,6 +732,16 @@ static int verify_expr(AVExpr *e)
             return verify_expr(e->param[0]) &&
                    verify_expr(e->param[1]) &&
                    verify_expr(e->param[2]);
+        case e_easein_sine:
+        case e_easeout_sine:
+        case e_easeinout_sine:
+        case e_easein_quart:
+        case e_easeout_quart:
+        case e_easeinout_quart:
+            return verify_expr(e->param[0]) &&
+                   verify_expr(e->param[1]) &&
+                   verify_expr(e->param[2]) &&
+                   verify_expr(e->param[3]);
         default: return verify_expr(e->param[0]) && verify_expr(e->param[1]) && !e->param[2];
     }
 }
