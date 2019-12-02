@@ -29,6 +29,9 @@ static const char *const var_names[] = {
     "ch",
     "hsub",
     "vsub",
+    "n",
+    "pos",
+    "t",
     NULL
 };
 
