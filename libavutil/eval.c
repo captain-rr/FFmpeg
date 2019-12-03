@@ -465,6 +465,10 @@ static int parse_primary(AVExpr **e, Parser *p)
         p->s++; // ","
         parse_expr(&d->param[2], p);
     }
+    if (p->s[0]== ',') {
+        p->s++; // ","
+        parse_expr(&d->param[3], p);
+    }
     if (p->s[0] != ')') {
         av_log(p, AV_LOG_ERROR, "Missing ')' or too many args in '%s'\n", s0);
         av_expr_free(d);
