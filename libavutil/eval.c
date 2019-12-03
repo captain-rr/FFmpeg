@@ -173,7 +173,7 @@ struct AVExpr {
         double (*func1)(void *, double);
         double (*func2)(void *, double, double);
     } a;
-    struct AVExpr *param[3];
+    struct AVExpr *param[4];
     double *var;
 };
 
