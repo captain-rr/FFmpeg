@@ -34,14 +34,14 @@ enum var_name {
     VAR_VARS_NB
 };
 
-typedef struct GenericShaderContext {
+typedef struct GLSLContext {
     const AVClass *class;
 
     GLuint        program;
     GLuint        frame_tex;
     GLFWwindow    *window;
     GLuint        pos_buf;
-    char          *shader_style;
+    int           shader;		///< ShaderTypes
     int           frame_idx;
 
     int is_color; // for vintage filter
@@ -58,7 +58,7 @@ typedef struct GenericShaderContext {
     float power;
     char *power_expr;
     AVExpr *power_pexpr;
-} GenericShaderContext;
+} GLSLContext;
 
 static const char *const var_names[] = {
     "main_w",    "W", ///< width  of the main    video
@@ -80,6 +80,14 @@ enum IsColorMode {
     IS_COLOR_MODE_TRUE,
     IS_COLOR_MODE_FALSE,
     IS_COLOR_MODE_NB
+};
+
+enum ShaderTypes {
+	SHADER_TYPE_PASSTHROUGH,
+	SHADER_TYPE_MATRIX,
+	SHADER_TYPE_SHOCKWAVE,
+	SHADER_TYPE_VINTAGE,
+	SHADER_TYPE_NB,
 };
 
 static const float position[12] = {
@@ -338,7 +346,7 @@ static inline float normalize_power(double d)
 
 static void eval_expr(AVFilterContext *ctx)
 {
-    GenericShaderContext *s = ctx->priv;
+	GLSLContext *s = ctx->priv;
     av_log(ctx, AV_LOG_VERBOSE, "eval_expr\n");
 
     s->var_values[VAR_POWER] = av_expr_eval(s->power_pexpr, s->var_values, NULL);
@@ -374,7 +382,7 @@ static int process_command(AVFilterContext *ctx, const char *cmd, const char *ar
                            char *res, int res_len, int flags)
 {
     int ret;
-    GenericShaderContext *s = ctx->priv;
+	GLSLContext *s = ctx->priv;
 
     av_log(ctx, AV_LOG_VERBOSE, "process_command cmd:%s args:%s\n",
            cmd, args);
@@ -452,7 +460,7 @@ static GLuint build_shader(AVFilterContext *ctx, const GLchar *shader_source, GL
     return status == GL_TRUE ? shader : 0;
 }
 
-static void vbo_setup(GenericShaderContext *gs, AVFilterContext *log_ctx) {
+static void vbo_setup(GLSLContext *gs, AVFilterContext *log_ctx) {
   GLint loc;
   av_log(log_ctx, AV_LOG_VERBOSE, "vbo_setup\n");
   glGenBuffers(1, &gs->pos_buf);
@@ -467,7 +475,7 @@ static void vbo_setup(GenericShaderContext *gs, AVFilterContext *log_ctx) {
 
 static void tex_setup(AVFilterLink *inlink, AVFilterContext *log_ctx) {
     AVFilterContext     *ctx = inlink->dst;
-    GenericShaderContext *gs = ctx->priv;
+	GLSLContext *gs = ctx->priv;
     av_log(log_ctx, AV_LOG_VERBOSE, "tex_setup\n");
 
     glGenTextures(1, &gs->frame_tex);
@@ -482,14 +490,14 @@ static void tex_setup(AVFilterLink *inlink, AVFilterContext *log_ctx) {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, NULL);
 
     glUniform1i(glGetUniformLocation(gs->program, "tex"), 0);
-    if (!strcmp(gs->shader_style, "matrix")){
+    if (gs->shader == SHADER_TYPE_MATRIX){
         glUniform1f(glGetUniformLocation(gs->program, "power"), 0);
         glUniform1f(glGetUniformLocation(gs->program, "time"), 0);
         glUniform1f(glGetUniformLocation(gs->program, "dropSize"), 0);
-    } else if (!strcmp(gs->shader_style, "shockwave")){
+    } else if (gs->shader == SHADER_TYPE_SHOCKWAVE){
         glUniform1f(glGetUniformLocation(gs->program, "power"), 0);
         glUniform1f(glGetUniformLocation(gs->program, "time"), 0);
-    } else if (!strcmp(gs->shader_style, "vintage")){
+    } else if (gs->shader == SHADER_TYPE_VINTAGE){
         glUniform1f(glGetUniformLocation(gs->program, "power"), 0);
         glUniform1f(glGetUniformLocation(gs->program, "time"), 0);
     }
@@ -500,9 +508,9 @@ static int build_program(AVFilterContext *ctx) {
     GLint status;
     GLuint v_shader, f_shader;
     GLchar* shader;
-    GenericShaderContext *gs = ctx->priv;
+	GLSLContext *gs = ctx->priv;
 
-    av_log(ctx, AV_LOG_VERBOSE, "build_program %s\n", gs->shader_style);
+    av_log(ctx, AV_LOG_VERBOSE, "build_program %s\n", gs->shader);
 
     if (gs->vs_text){
         av_log(ctx, AV_LOG_VERBOSE, "build_program vs_from_text ||%s||\n", gs->vs_text);
@@ -514,13 +522,13 @@ static int build_program(AVFilterContext *ctx) {
     if (gs->fs_text){
         av_log(ctx, AV_LOG_VERBOSE, "build_program_2_s %d ||%s||\n", v_shader, gs->fs_text);
         f_shader = build_shader(ctx, (GLchar*)gs->fs_text, GL_FRAGMENT_SHADER);
-    } else if (!strcmp(gs->shader_style, "matrix")){
+    } else if (gs->shader == SHADER_TYPE_MATRIX){
         av_log(ctx, AV_LOG_VERBOSE, "build_program_2_1 %d\n", v_shader);
         f_shader = build_shader(ctx, f_matrix_shader_source, GL_FRAGMENT_SHADER);
-    } else if (!strcmp(gs->shader_style, "shockwave")) {
+    } else if (gs->shader == SHADER_TYPE_SHOCKWAVE) {
         av_log(ctx, AV_LOG_VERBOSE, "build_program_2_2 %d\n", v_shader);
         f_shader = build_shader(ctx, f_shockwave_shader_source, GL_FRAGMENT_SHADER);
-    } else if (!strcmp(gs->shader_style, "vintage")) {
+    } else if (gs->shader == SHADER_TYPE_VINTAGE) {
         av_log(ctx, AV_LOG_VERBOSE, "build_program_2_3 %d\n", v_shader);
         f_shader = build_shader(ctx, f_vintage_shader_source, GL_FRAGMENT_SHADER);
     } else {
@@ -550,7 +558,7 @@ static int build_program(AVFilterContext *ctx) {
 static av_cold int init(AVFilterContext *ctx) {
     int err;
     int status;
-    GenericShaderContext *gs = ctx->priv;
+	GLSLContext *gs = ctx->priv;
     av_log(ctx, AV_LOG_VERBOSE, "init\n");
     if (gs->vs_textfile) {
         av_log(ctx, AV_LOG_VERBOSE, "attempt load text file for vertex shader '%s'\n", gs->vs_textfile);
@@ -562,7 +570,7 @@ static av_cold int init(AVFilterContext *ctx) {
         if ((err = load_textfile(ctx, gs->fs_textfile, &gs->fs_text)) < 0)
             return err;
     }
-    if (!gs->shader_style) {
+    if (!gs->shader) {
         av_log(ctx, AV_LOG_ERROR, "Empty output shader style string.\n");
         return AVERROR(EINVAL);
     }
@@ -575,7 +583,7 @@ static av_cold int init(AVFilterContext *ctx) {
 static int config_props(AVFilterLink *inlink) {
   int ret;
   AVFilterContext     *ctx = inlink->dst;
-  GenericShaderContext *gs = ctx->priv;
+  GLSLContext *gs = ctx->priv;
 
   av_log(ctx, AV_LOG_VERBOSE, "config_props\n");
 
@@ -623,7 +631,7 @@ static int config_props(AVFilterLink *inlink) {
 static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
     AVFilterContext *ctx     = inlink->dst;
     AVFilterLink    *outlink = ctx->outputs[0];
-    GenericShaderContext *gs = ctx->priv;
+    GLSLContext *gs = ctx->priv;
 
     av_log(ctx, AV_LOG_VERBOSE, "filter_frame\n");
 
@@ -650,19 +658,19 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
     }
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, in->data[0]);
-    if (!strcmp(gs->shader_style, "matrix")){
+    if (gs->shader == SHADER_TYPE_MATRIX){
         glUniform1fv(glGetUniformLocation(gs->program, "power"), 1, &gs->power);
         GLfloat time = (GLfloat)(gs->var_values[VAR_T] == NAN? gs->frame_idx * 330: gs->var_values[VAR_T] * 1000);
         GLfloat dropSize = (GLfloat)gs->dropSize;
         av_log(ctx, AV_LOG_VERBOSE, "filter_frame matrix time:%f dropSize:%f\n", time, dropSize);
         glUniform1fv(glGetUniformLocation(gs->program, "time"), 1, &time);
         glUniform1fv(glGetUniformLocation(gs->program, "dropSize"), 1, &dropSize);
-    } else if (!strcmp(gs->shader_style, "shockwave")){
+    } else if (gs->shader == SHADER_TYPE_SHOCKWAVE){
         glUniform1fv(glGetUniformLocation(gs->program, "power"), 1, &gs->power);
         GLfloat time = (GLfloat)(gs->var_values[VAR_T] == NAN? gs->frame_idx * 1.6667: gs->var_values[VAR_T] * 5);
         av_log(ctx, AV_LOG_VERBOSE, "filter_frame shockwave time:%f\n", time);
         glUniform1fv(glGetUniformLocation(gs->program, "time"), 1, &time);
-    } else if (!strcmp(gs->shader_style, "vintage")){
+    } else if (gs->shader == SHADER_TYPE_VINTAGE){
         glUniform1fv(glGetUniformLocation(gs->program, "power"), 1, &gs->power);
         GLfloat time = (GLfloat)(gs->var_values[VAR_T] == NAN? gs->frame_idx * 330: gs->var_values[VAR_T] * 1000);
         GLint isColor = gs->is_color == IS_COLOR_MODE_TRUE? 1: 0;
@@ -680,7 +688,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 }
 
 static av_cold void uninit(AVFilterContext *ctx) {
-    GenericShaderContext *gs = ctx->priv;
+    GLSLContext *gs = ctx->priv;
     av_log(ctx, AV_LOG_VERBOSE, "uninit\n");
 
     glDeleteTextures(1, &gs->frame_tex);
@@ -712,43 +720,46 @@ static int query_formats(AVFilterContext *ctx) {
     return ret;
 }
 
-#define OFFSET(x) offsetof(GenericShaderContext, x)
-static const AVOption genericshader_options[] = {
-    {"vs_textfile",    "set a text file for vertex shader",        OFFSET(vs_textfile),           AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX, FLAGS},
-    {"fs_textfile",    "set a text file for fragment shader",      OFFSET(fs_textfile),           AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX, FLAGS},
+#define OFFSET(x) offsetof(GLSLContext, x)
+static const AVOption glsl_options[] = {
+	{ "shader", "set the shader", OFFSET(shader), AV_OPT_TYPE_INT, {.i64 = SHADER_TYPE_PASSTHROUGH}, 0, SHADER_TYPE_NB-1, FLAGS, "shader" },
+			 { "matrix",  "set matrix like effect",    0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_MATRIX},.flags = FLAGS,.unit = "shader" },
+			 { "shockwave", "set shockwave like effect", 0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_SHOCKWAVE},.flags = FLAGS,.unit = "shader" },
+			 { "vintage", "set vintage like effect", 0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_VINTAGE},.flags = FLAGS,.unit = "shader" },
+	{ "vs_textfile",    "set a text file for vertex shader",        OFFSET(vs_textfile),           AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX, FLAGS},
+    { "fs_textfile",    "set a text file for fragment shader",      OFFSET(fs_textfile),           AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX, FLAGS},
     { "power", "set the power expression", OFFSET(power_expr), AV_OPT_TYPE_STRING, {.str = "0"}, CHAR_MIN, CHAR_MAX, FLAGS },
-    { "shader_style", "set the shader", OFFSET(shader_style), AV_OPT_TYPE_STRING, {.str = "0"}, CHAR_MIN, CHAR_MAX, FLAGS },
     { "eval", "specify when to evaluate expressions", OFFSET(eval_mode), AV_OPT_TYPE_INT, {.i64 = EVAL_MODE_FRAME}, 0, EVAL_MODE_NB-1, FLAGS, "eval" },
              { "init",  "eval expressions once during initialization", 0, AV_OPT_TYPE_CONST, {.i64=EVAL_MODE_INIT},  .flags = FLAGS, .unit = "eval" },
              { "frame", "eval expressions per-frame",                  0, AV_OPT_TYPE_CONST, {.i64=EVAL_MODE_FRAME}, .flags = FLAGS, .unit = "eval" },
-    { "is_color", "relevant to vintage, specify color mode", OFFSET(is_color), AV_OPT_TYPE_INT, {.i64 = IS_COLOR_MODE_TRUE}, 0, IS_COLOR_MODE_NB-1, FLAGS, "eval" },
-             { "true",  "color mode",    0, AV_OPT_TYPE_CONST, {.i64=IS_COLOR_MODE_TRUE},  .flags = FLAGS, .unit = "eval" },
-             { "false", "no color mode", 0, AV_OPT_TYPE_CONST, {.i64=IS_COLOR_MODE_FALSE}, .flags = FLAGS, .unit = "eval" },
+    { "is_color", "relevant to vintage, specify color mode", OFFSET(is_color), AV_OPT_TYPE_INT, {.i64 = IS_COLOR_MODE_TRUE}, 0, IS_COLOR_MODE_NB-1, FLAGS, "is_color" },
+             { "true",  "color mode",    0, AV_OPT_TYPE_CONST, {.i64=IS_COLOR_MODE_TRUE},  .flags = FLAGS, .unit = "is_color" },
+             { "false", "no color mode", 0, AV_OPT_TYPE_CONST, {.i64=IS_COLOR_MODE_FALSE}, .flags = FLAGS, .unit = "is_color" },
     { "drop_size",  "matrix drop size", OFFSET(dropSize), AV_OPT_TYPE_FLOAT, {.dbl=5.0}, 0, 100, FLAGS },
     {NULL}
 };
 
-AVFILTER_DEFINE_CLASS(genericshader);
+AVFILTER_DEFINE_CLASS(glsl);
 
-static const AVFilterPad genericshader_inputs[] = {
+static const AVFilterPad glsl_inputs[] = {
   {.name = "default",
    .type = AVMEDIA_TYPE_VIDEO,
    .config_props = config_props,
    .filter_frame = filter_frame},
   {NULL}};
 
-static const AVFilterPad genericshader_outputs[] = {
+static const AVFilterPad glsl_outputs[] = {
   {.name = "default", .type = AVMEDIA_TYPE_VIDEO}, {NULL}};
 
-AVFilter ff_vf_genericshader = {
-  .name          = "genericshader",
+AVFilter ff_vf_glsl = {
+  .name          = "glsl",
   .description   = NULL_IF_CONFIG_SMALL("Generic OpenGL shader filter"),
-  .priv_size     = sizeof(GenericShaderContext),
-  .priv_class    = &genericshader_class,
+  .priv_size     = sizeof(GLSLContext),
+  .priv_class    = &glsl_class,
   .init          = init,
   .uninit        = uninit,
   .query_formats = query_formats,
   .process_command = process_command,
-  .inputs        = genericshader_inputs,
-  .outputs       = genericshader_outputs,
+  .inputs        = glsl_inputs,
+  .outputs       = glsl_outputs,
   .flags         = AVFILTER_FLAG_SUPPORT_TIMELINE_GENERIC};
