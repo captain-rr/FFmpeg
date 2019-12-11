@@ -764,7 +764,7 @@ static int config_input_props(AVFilterLink *inlink) {
 	//glfw
 	glfwWindowHint(GLFW_VISIBLE, 0);
 	gs->window = glfwCreateWindow(inlink->w, inlink->h, "", NULL, NULL);
-	if (!c->window) {
+	if (!gs->window) {
 		av_log(ctx, AV_LOG_ERROR, "setup_gl ERROR");
 		return -1;
 	}
@@ -1076,7 +1076,7 @@ AVFilter ff_vf_glsl = {
 static const AVOption gltransition_options[] = {
 	{ "duration", "transition duration in seconds", OFFSET(duration), AV_OPT_TYPE_DOUBLE, {.dbl = 1.0}, 0, DBL_MAX, FLAGS },
 	{ "offset", "delay before startingtransition in seconds", OFFSET(offset), AV_OPT_TYPE_DOUBLE, {.dbl = 0.0}, 0, DBL_MAX, FLAGS },
-	{ "source", "path to the gl-transition source file (defaults to basic fade)", OFFSET(source), AV_OPT_TYPE_STRING, {.str = NULL}, CHAR_MIN, CHAR_MAX, FLAGS },
+	{ "transition", "path to the gl-transition source file (defaults to basic fade)", OFFSET(transition_source), AV_OPT_TYPE_STRING, {.str = NULL}, CHAR_MIN, CHAR_MAX, FLAGS },
 	{ "shader", "should always be left at default value", OFFSET(shader), AV_OPT_TYPE_INT, {.i64 = SHADER_TYPE_TRANSITION}, SHADER_TYPE_TRANSITION, SHADER_TYPE_TRANSITION, FLAGS },
 	{NULL}
 };
