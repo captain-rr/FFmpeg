@@ -527,26 +527,26 @@ static GLuint build_shader(AVFilterContext *ctx, const GLchar *shader_source, GL
     return status == GL_TRUE ? shader : 0;
 }
 
-static void setup_vbo(GLSLContext *gs, AVFilterContext *log_ctx) {
+static void setup_vbo(GLSLContext *c, AVFilterContext *log_ctx) {
   GLint loc;
-  glGenBuffers(1, &gs->pos_buf);
-  glBindBuffer(GL_ARRAY_BUFFER, gs->pos_buf);
+  glGenBuffers(1, &c->pos_buf);
+  glBindBuffer(GL_ARRAY_BUFFER, c->pos_buf);
   glBufferData(GL_ARRAY_BUFFER, sizeof(position), position, GL_STATIC_DRAW);
 
-  loc = glGetAttribLocation(gs->program, "position");
+  loc = glGetAttribLocation(c->program, "position");
   glEnableVertexAttribArray(loc);
   glVertexAttribPointer(loc, 2, GL_FLOAT, GL_FALSE, 0, 0);
 }
 
 static void setup_tex(AVFilterLink *inlink) {
     AVFilterContext     *ctx = inlink->dst;
-	GLSLContext *gs = ctx->priv;
+	GLSLContext *c = ctx->priv;
 
-	if (gs->shader == SHADER_TYPE_TRANSITION) {
+	if (c->shader == SHADER_TYPE_TRANSITION) {
 		{ // from
-			glGenTextures(1, &gs->uFrom);
+			glGenTextures(1, &c->uFrom);
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, gs->uFrom);
+			glBindTexture(GL_TEXTURE_2D, c->uFrom);
 
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -555,7 +555,7 @@ static void setup_tex(AVFilterLink *inlink) {
 
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, NULL);
 
-			glUniform1i(glGetUniformLocation(gs->program, "from"), 0);
+			glUniform1i(glGetUniformLocation(c->program, "from"), 0);
 		}
 
 		{ // to
@@ -570,14 +570,14 @@ static void setup_tex(AVFilterLink *inlink) {
 
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, NULL);
 
-			glUniform1i(glGetUniformLocation(gs->program, "to"), 1);
+			glUniform1i(glGetUniformLocation(c->program, "to"), 1);
 		}
 	}
 	else {
-		glGenTextures(1, &gs->frame_tex);
+		glGenTextures(1, &c->frame_tex);
 		glActiveTexture(GL_TEXTURE0);
 
-		glBindTexture(GL_TEXTURE_2D, gs->frame_tex);
+		glBindTexture(GL_TEXTURE_2D, c->frame_tex);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -585,29 +585,29 @@ static void setup_tex(AVFilterLink *inlink) {
 
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, NULL);
 
-		glUniform1i(glGetUniformLocation(gs->program, "tex"), 0);
+		glUniform1i(glGetUniformLocation(c->program, "tex"), 0);
 	}
 }
 
 static void setup_uniforms(AVFilterLink *fromLink)
 {
 	AVFilterContext     *ctx = fromLink->dst;
-	GLSLContext *gs = ctx->priv;
+	GLSLContext *c = ctx->priv;
 
-	glUniform1f(glGetUniformLocation(gs->program, "power"), 0.0f);
+	glUniform1f(glGetUniformLocation(c->program, "power"), 0.0f);
 
-	if (gs->shader == SHADER_TYPE_MATRIX) {
-		glUniform1f(glGetUniformLocation(gs->program, "time"), 0.0f);
-		glUniform1f(glGetUniformLocation(gs->program, "dropSize"), 0.0f);
+	if (c->shader == SHADER_TYPE_MATRIX) {
+		glUniform1f(glGetUniformLocation(c->program, "time"), 0.0f);
+		glUniform1f(glGetUniformLocation(c->program, "dropSize"), 0.0f);
 	}
-	else if (gs->shader == SHADER_TYPE_SHOCKWAVE) {
-		glUniform1f(glGetUniformLocation(gs->program, "time"), 0.0f);
+	else if (c->shader == SHADER_TYPE_SHOCKWAVE) {
+		glUniform1f(glGetUniformLocation(c->program, "time"), 0.0f);
 	}
-	else if (gs->shader == SHADER_TYPE_VINTAGE) {
-		glUniform1f(glGetUniformLocation(gs->program, "time"), 0.0f);
-		glUniform1i(glGetUniformLocation(gs->program, "isColor"), 0);
+	else if (c->shader == SHADER_TYPE_VINTAGE) {
+		glUniform1f(glGetUniformLocation(c->program, "time"), 0.0f);
+		glUniform1i(glGetUniformLocation(c->program, "isColor"), 0);
 	}
-	//else if (gs->shader == SHADER_TYPE_TRANSITION) {
+	//else if (c->shader == SHADER_TYPE_TRANSITION) {
 
 	//}
 }
@@ -616,11 +616,11 @@ static int build_program(AVFilterContext *ctx) {
     GLint status;
     GLuint v_shader, f_shader;
     GLchar* shader;
-	GLSLContext *gs = ctx->priv;
+	GLSLContext *c = ctx->priv;
 
-    av_log(ctx, AV_LOG_VERBOSE, "build_program %s\n", gs->shader);
+    av_log(ctx, AV_LOG_VERBOSE, "build_program %s\n", c->shader);
 
-	if (gs->shader == SHADER_TYPE_TRANSITION) {
+	if (c->shader == SHADER_TYPE_TRANSITION) {
 		if (!(v_shader = build_shader(ctx, v_shader_source, GL_VERTEX_SHADER))) {
 			av_log(ctx, AV_LOG_ERROR, "invalid vertex shader\n");
 			return -1;
@@ -632,25 +632,25 @@ static int build_program(AVFilterContext *ctx) {
 		}
 	}
 	else {
-		if (gs->vs_text) {
-			av_log(ctx, AV_LOG_VERBOSE, "build_program vs_from_text ||%s||\n", gs->vs_text);
-			v_shader = build_shader(ctx, (GLchar*)gs->vs_text, GL_VERTEX_SHADER);
+		if (c->vs_text) {
+			av_log(ctx, AV_LOG_VERBOSE, "build_program vs_from_text ||%s||\n", c->vs_text);
+			v_shader = build_shader(ctx, (GLchar*)c->vs_text, GL_VERTEX_SHADER);
 		}
 		else {
 			v_shader = build_shader(ctx, v_shader_source, GL_VERTEX_SHADER);
 		}
 
-		if (gs->fs_text) {
-			av_log(ctx, AV_LOG_VERBOSE, "build_program_2_s %d ||%s||\n", v_shader, gs->fs_text);
-			f_shader = build_shader(ctx, (GLchar*)gs->fs_text, GL_FRAGMENT_SHADER);
+		if (c->fs_text) {
+			av_log(ctx, AV_LOG_VERBOSE, "build_program_2_s %d ||%s||\n", v_shader, c->fs_text);
+			f_shader = build_shader(ctx, (GLchar*)c->fs_text, GL_FRAGMENT_SHADER);
 		}
-		else if (gs->shader == SHADER_TYPE_MATRIX) {
+		else if (c->shader == SHADER_TYPE_MATRIX) {
 			f_shader = build_shader(ctx, f_matrix_shader_source, GL_FRAGMENT_SHADER);
 		}
-		else if (gs->shader == SHADER_TYPE_SHOCKWAVE) {
+		else if (c->shader == SHADER_TYPE_SHOCKWAVE) {
 			f_shader = build_shader(ctx, f_shockwave_shader_source, GL_FRAGMENT_SHADER);
 		}
-		else if (gs->shader == SHADER_TYPE_VINTAGE) {
+		else if (c->shader == SHADER_TYPE_VINTAGE) {
 			f_shader = build_shader(ctx, f_vintage_shader_source, GL_FRAGMENT_SHADER);
 		}
 		else {
@@ -663,31 +663,31 @@ static int build_program(AVFilterContext *ctx) {
 		}
 	}
 
-	gs->program = glCreateProgram();
-	glAttachShader(gs->program, v_shader);
-	glAttachShader(gs->program, f_shader);
-	glLinkProgram(gs->program);
+	c->program = glCreateProgram();
+	glAttachShader(c->program, v_shader);
+	glAttachShader(c->program, f_shader);
+	glLinkProgram(c->program);
 
-	glGetProgramiv(gs->program, GL_LINK_STATUS, &status);
+	glGetProgramiv(c->program, GL_LINK_STATUS, &status);
 	return status == GL_TRUE ? 0 : -1;
 }
 
 static av_cold int init(AVFilterContext *ctx) {
     int err;
     int status;
-	GLSLContext *gs = ctx->priv;
+	GLSLContext *c = ctx->priv;
     av_log(ctx, AV_LOG_VERBOSE, "init\n");
-    if (gs->vs_textfile) {
-        av_log(ctx, AV_LOG_VERBOSE, "attempt load text file for vertex shader '%s'\n", gs->vs_textfile);
-        if ((err = load_textfile(ctx, gs->vs_textfile, &gs->vs_text)) < 0)
+    if (c->vs_textfile) {
+        av_log(ctx, AV_LOG_VERBOSE, "attempt load text file for vertex shader '%s'\n", c->vs_textfile);
+        if ((err = load_textfile(ctx, c->vs_textfile, &c->vs_text)) < 0)
             return err;
     }
-    if (gs->fs_textfile) {
-        av_log(ctx, AV_LOG_VERBOSE, "attempt load text file for fragment shader '%s'\n", gs->fs_textfile);
-        if ((err = load_textfile(ctx, gs->fs_textfile, &gs->fs_text)) < 0)
+    if (c->fs_textfile) {
+        av_log(ctx, AV_LOG_VERBOSE, "attempt load text file for fragment shader '%s'\n", c->fs_textfile);
+        if ((err = load_textfile(ctx, c->fs_textfile, &c->fs_text)) < 0)
             return err;
     }
-    if (!gs->shader) {
+    if (!c->shader) {
         av_log(ctx, AV_LOG_ERROR, "Empty output shader style string.\n");
         return AVERROR(EINVAL);
     }
@@ -709,9 +709,9 @@ static av_cold int init_transition(AVFilterContext *ctx)
 	c->first_pts = AV_NOPTS_VALUE;
 	c->shader = SHADER_TYPE_TRANSITION;
 
-	if (gs->transition_source) {
-		av_log(ctx, AV_LOG_VERBOSE, "attempt load text file for transition function '%s'\n", gs->transition_source);
-		if ((err = load_textfile(ctx, gs->transition_source, &transition_function)) < 0)
+	if (c->transition_source) {
+		av_log(ctx, AV_LOG_VERBOSE, "attempt load text file for transition function '%s'\n", c->transition_source);
+		if ((err = load_textfile(ctx, c->transition_source, &transition_function)) < 0)
 			return err;
 	}
 	else 
@@ -759,16 +759,16 @@ static av_cold void uninit_transition(AVFilterContext *ctx) {
 static int config_input_props(AVFilterLink *inlink) {
 	int ret;
 	AVFilterContext     *ctx = inlink->dst;
-	GLSLContext *gs = ctx->priv;
+	GLSLContext *c = ctx->priv;
 
 	//glfw
 	glfwWindowHint(GLFW_VISIBLE, 0);
-	gs->window = glfwCreateWindow(inlink->w, inlink->h, "", NULL, NULL);
-	if (!gs->window) {
+	c->window = glfwCreateWindow(inlink->w, inlink->h, "", NULL, NULL);
+	if (!c->window) {
 		av_log(ctx, AV_LOG_ERROR, "setup_gl ERROR");
 		return -1;
 	}
-	glfwMakeContextCurrent(gs->window);
+	glfwMakeContextCurrent(c->window);
 
 #ifndef __APPLE__
 	glewExperimental = GL_TRUE;
@@ -780,19 +780,19 @@ static int config_input_props(AVFilterLink *inlink) {
 	if ((ret = build_program(ctx)) < 0) {
 		return ret;
 	}
-	gs->var_values[VAR_MAIN_W] = gs->var_values[VAR_MW] = ctx->inputs[MAIN]->w;
-	gs->var_values[VAR_MAIN_H] = gs->var_values[VAR_MH] = ctx->inputs[MAIN]->h;
-	gs->var_values[VAR_POWER] = NAN;
-	gs->var_values[VAR_T] = NAN;
-	gs->var_values[VAR_POS] = NAN;
+	c->var_values[VAR_MAIN_W] = c->var_values[VAR_MW] = ctx->inputs[MAIN]->w;
+	c->var_values[VAR_MAIN_H] = c->var_values[VAR_MH] = ctx->inputs[MAIN]->h;
+	c->var_values[VAR_POWER] = NAN;
+	c->var_values[VAR_T] = NAN;
+	c->var_values[VAR_POS] = NAN;
 
-	if ((ret = set_expr(&gs->power_pexpr, gs->power_expr, "power", ctx)) < 0)
+	if ((ret = set_expr(&c->power_pexpr, c->power_expr, "power", ctx)) < 0)
 		return ret;
 
-	if (gs->eval_mode == EVAL_MODE_INIT) {
+	if (c->eval_mode == EVAL_MODE_INIT) {
 		eval_expr(ctx);
 		av_log(ctx, AV_LOG_INFO, "pow:%f powi:%f\n",
-			gs->var_values[VAR_POWER], gs->power);
+			c->var_values[VAR_POWER], c->power);
 	}
 
 	av_log(ctx, AV_LOG_VERBOSE,
@@ -800,8 +800,8 @@ static int config_input_props(AVFilterLink *inlink) {
 		ctx->inputs[MAIN]->w, ctx->inputs[MAIN]->h,
 		av_get_pix_fmt_name(ctx->inputs[MAIN]->format));
 
-	glUseProgram(gs->program);
-	setup_vbo(gs, ctx);
+	glUseProgram(c->program);
+	setup_vbo(c, ctx);
 	setup_uniforms(inlink);
 	setup_tex(inlink);
 
@@ -845,7 +845,7 @@ static int config_transition_output(AVFilterLink *outLink)
 static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
     AVFilterContext *ctx     = inlink->dst;
     AVFilterLink    *outlink = ctx->outputs[0];
-    GLSLContext *gs = ctx->priv;
+    GLSLContext *c = ctx->priv;
 
     av_log(ctx, AV_LOG_VERBOSE, "filter_frame\n");
 
@@ -856,47 +856,47 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
     }
     av_frame_copy_props(out, in);
 
-    if (gs->eval_mode == EVAL_MODE_FRAME) {
+    if (c->eval_mode == EVAL_MODE_FRAME) {
       int64_t pos = in->pkt_pos;
 
-      gs->var_values[VAR_N] = inlink->frame_count_out;
-      gs->var_values[VAR_T] = in->pts == AV_NOPTS_VALUE ? NAN : in->pts * av_q2d(inlink->time_base);
-      gs->var_values[VAR_POS] = pos == -1 ? NAN : pos;
+      c->var_values[VAR_N] = inlink->frame_count_out;
+      c->var_values[VAR_T] = in->pts == AV_NOPTS_VALUE ? NAN : in->pts * av_q2d(inlink->time_base);
+      c->var_values[VAR_POS] = pos == -1 ? NAN : pos;
 
-      gs->var_values[VAR_MAIN_W] = gs->var_values[VAR_MW] = in->width;
-      gs->var_values[VAR_MAIN_H] = gs->var_values[VAR_MH] = in->height;
+      c->var_values[VAR_MAIN_W] = c->var_values[VAR_MW] = in->width;
+      c->var_values[VAR_MAIN_H] = c->var_values[VAR_MH] = in->height;
 
       eval_expr(ctx);
       av_log(ctx, AV_LOG_VERBOSE, "filter_frame pow:%f powi:%f time:%f\n",
-             gs->var_values[VAR_POWER], gs->power, gs->var_values[VAR_T]);
+             c->var_values[VAR_POWER], c->power, c->var_values[VAR_T]);
     }
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, in->data[0]);
-    if (gs->shader == SHADER_TYPE_MATRIX){
-        glUniform1fv(glGetUniformLocation(gs->program, "power"), 1, &gs->power);
-        GLfloat time = (GLfloat)(gs->var_values[VAR_T] == NAN? gs->frame_idx * 330: gs->var_values[VAR_T] * 1000);
-        GLfloat dropSize = (GLfloat)gs->dropSize;
+    if (c->shader == SHADER_TYPE_MATRIX){
+        glUniform1fv(glGetUniformLocation(c->program, "power"), 1, &c->power);
+        GLfloat time = (GLfloat)(c->var_values[VAR_T] == NAN? c->frame_idx * 330: c->var_values[VAR_T] * 1000);
+        GLfloat dropSize = (GLfloat)c->dropSize;
         av_log(ctx, AV_LOG_VERBOSE, "filter_frame matrix time:%f dropSize:%f\n", time, dropSize);
-        glUniform1fv(glGetUniformLocation(gs->program, "time"), 1, &time);
-        glUniform1fv(glGetUniformLocation(gs->program, "dropSize"), 1, &dropSize);
-    } else if (gs->shader == SHADER_TYPE_SHOCKWAVE){
-        glUniform1fv(glGetUniformLocation(gs->program, "power"), 1, &gs->power);
-        GLfloat time = (GLfloat)(gs->var_values[VAR_T] == NAN? gs->frame_idx * 1.6667: gs->var_values[VAR_T] * 5);
+        glUniform1fv(glGetUniformLocation(c->program, "time"), 1, &time);
+        glUniform1fv(glGetUniformLocation(c->program, "dropSize"), 1, &dropSize);
+    } else if (c->shader == SHADER_TYPE_SHOCKWAVE){
+        glUniform1fv(glGetUniformLocation(c->program, "power"), 1, &c->power);
+        GLfloat time = (GLfloat)(c->var_values[VAR_T] == NAN? c->frame_idx * 1.6667: c->var_values[VAR_T] * 5);
         av_log(ctx, AV_LOG_VERBOSE, "filter_frame shockwave time:%f\n", time);
-        glUniform1fv(glGetUniformLocation(gs->program, "time"), 1, &time);
-    } else if (gs->shader == SHADER_TYPE_VINTAGE){
-        glUniform1fv(glGetUniformLocation(gs->program, "power"), 1, &gs->power);
-        GLfloat time = (GLfloat)(gs->var_values[VAR_T] == NAN? gs->frame_idx * 330: gs->var_values[VAR_T] * 1000);
-        GLint isColor = gs->is_color == IS_COLOR_MODE_TRUE? 1: 0;
+        glUniform1fv(glGetUniformLocation(c->program, "time"), 1, &time);
+    } else if (c->shader == SHADER_TYPE_VINTAGE){
+        glUniform1fv(glGetUniformLocation(c->program, "power"), 1, &c->power);
+        GLfloat time = (GLfloat)(c->var_values[VAR_T] == NAN? c->frame_idx * 330: c->var_values[VAR_T] * 1000);
+        GLint isColor = c->is_color == IS_COLOR_MODE_TRUE? 1: 0;
         av_log(ctx, AV_LOG_VERBOSE, "filter_frame vintage isColor:%d time:%f\n", isColor, time);
-        glUniform1fv(glGetUniformLocation(gs->program, "time"), 1, &time);
-        glUniform1iv(glGetUniformLocation(gs->program, "isColor"), 1, &isColor);
+        glUniform1fv(glGetUniformLocation(c->program, "time"), 1, &time);
+        glUniform1iv(glGetUniformLocation(c->program, "isColor"), 1, &isColor);
     }
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glReadPixels(0, 0, outlink->w, outlink->h, PIXEL_FORMAT, GL_UNSIGNED_BYTE, (GLvoid *)out->data[0]);
 
     av_frame_free(&in);
-    gs->frame_idx++;
+    c->frame_idx++;
     av_log(ctx, AV_LOG_VERBOSE, "filter_frame end\n");
     return ff_filter_frame(outlink, out);
 }
@@ -986,25 +986,25 @@ static int blend_frame(FFFrameSync *fs)
 }
 
 static av_cold void uninit(AVFilterContext *ctx) {
-    GLSLContext *gs = ctx->priv;
+    GLSLContext *c = ctx->priv;
     av_log(ctx, AV_LOG_VERBOSE, "uninit\n");
 
-    glDeleteTextures(1, &gs->frame_tex);
+    glDeleteTextures(1, &c->frame_tex);
     av_log(ctx, AV_LOG_VERBOSE, "uninit1\n");
-    if (gs->program){
-        glDeleteProgram(gs->program);
+    if (c->program){
+        glDeleteProgram(c->program);
         av_log(ctx, AV_LOG_VERBOSE, "uninit2\n");
-        glDeleteBuffers(1, &gs->pos_buf);
+        glDeleteBuffers(1, &c->pos_buf);
         av_log(ctx, AV_LOG_VERBOSE, "uninit3\n");
     }
-    if (gs->window){
-        glfwDestroyWindow(gs->window);
+    if (c->window){
+        glfwDestroyWindow(c->window);
         av_log(ctx, AV_LOG_VERBOSE, "uninit4\n");
     }
-    if (gs->power_pexpr){
-        av_expr_free(gs->power_pexpr);
+    if (c->power_pexpr){
+        av_expr_free(c->power_pexpr);
         av_log(ctx, AV_LOG_VERBOSE, "uninit5\n");
-        gs->power_pexpr = NULL;
+        c->power_pexpr = NULL;
     }
     av_log(ctx, AV_LOG_VERBOSE, "uninit6\n");
 }
