@@ -136,7 +136,7 @@ static const GLchar *v_shader_source =
   "}\n";
 
 static const GLchar *v_overlay_shader_source = 
-	"attribute vec2 position;\n";
+	"attribute vec2 position;\n"
 	"varying vec2 texCoord;\n"
 	"void main(void) {\n"
 	"  gl_Position = vec4(position, 0, 1);\n"
@@ -697,6 +697,89 @@ static av_cold int init(AVFilterContext *ctx) {
     return status? 0 : -1;
 }
 
+static AVFrame *apply_transition(FFFrameSync *fs,
+	AVFilterContext *ctx,
+	AVFrame *fromFrame,
+	const AVFrame *toFrame)
+{
+	GLSLContext *c = ctx->priv;
+	AVFilterLink *fromLink = ctx->inputs[FROM];
+	AVFilterLink *toLink = ctx->inputs[TO];
+	AVFilterLink *outLink = ctx->outputs[0];
+	AVFrame *outFrame;
+
+	outFrame = ff_get_video_buffer(outLink, outLink->w, outLink->h);
+	if (!outFrame) {
+		return NULL;
+	}
+
+	av_frame_copy_props(outFrame, fromFrame);
+
+	glfwMakeContextCurrent(c->window);
+
+	glUseProgram(c->program);
+
+	const float ts = ((fs->pts - c->first_pts) / (float)fs->time_base.den) - c->offset;
+	const float power = FFMAX(0.0f, FFMIN(1.0f, ts / c->duration));
+	// av_log(ctx, AV_LOG_ERROR, "transition '%s' %llu %f %f\n", c->transition_source, fs->pts - c->first_pts, ts, power);
+	glUniform1f(glGetUniformLocation(c->program, "power"), power);
+
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, c->uFrom);
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, fromFrame->linesize[0] / 3);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, fromLink->w, fromLink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, fromFrame->data[0]);
+
+	glActiveTexture(GL_TEXTURE0 + 1);
+	glBindTexture(GL_TEXTURE_2D, c->uTo);
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, toFrame->linesize[0] / 3);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, toLink->w, toLink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, toFrame->data[0]);
+
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glPixelStorei(GL_PACK_ROW_LENGTH, outFrame->linesize[0] / 3);
+	glReadPixels(0, 0, outLink->w, outLink->h, PIXEL_FORMAT, GL_UNSIGNED_BYTE, (GLvoid *)outFrame->data[0]);
+
+	glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+
+	av_frame_free(&fromFrame);
+
+	return outFrame;
+}
+
+static int blend_frame(FFFrameSync *fs)
+{
+	AVFilterContext *ctx = fs->parent;
+	GLSLContext *c = ctx->priv;
+
+	AVFrame *fromFrame, *toFrame, *outFrame;
+	int ret;
+
+	ret = ff_framesync_dualinput_get(fs, &fromFrame, &toFrame);
+	if (ret < 0) {
+		return ret;
+	}
+
+	if (c->first_pts == AV_NOPTS_VALUE &&
+		fromFrame &&
+		fromFrame->pts != AV_NOPTS_VALUE) {
+		c->first_pts = fromFrame->pts;
+	}
+
+	if (!toFrame) {
+		return ff_filter_frame(ctx->outputs[0], fromFrame);
+	}
+
+	outFrame = apply_transition(fs, ctx, fromFrame, toFrame);
+	if (!outFrame) {
+		return AVERROR(ENOMEM);
+	}
+
+	return ff_filter_frame(ctx->outputs[0], outFrame);
+}
+
 static av_cold int init_transition(AVFilterContext *ctx)
 {
 	int err, status;
@@ -901,89 +984,6 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
     return ff_filter_frame(outlink, out);
 }
 
-
-static AVFrame *apply_transition(FFFrameSync *fs,
-	AVFilterContext *ctx,
-	AVFrame *fromFrame,
-	const AVFrame *toFrame)
-{
-	GLSLContext *c = ctx->priv;
-	AVFilterLink *fromLink = ctx->inputs[FROM];
-	AVFilterLink *toLink = ctx->inputs[TO];
-	AVFilterLink *outLink = ctx->outputs[0];
-	AVFrame *outFrame;
-
-	outFrame = ff_get_video_buffer(outLink, outLink->w, outLink->h);
-	if (!outFrame) {
-		return NULL;
-	}
-
-	av_frame_copy_props(outFrame, fromFrame);
-
-	glfwMakeContextCurrent(c->window);
-
-	glUseProgram(c->program);
-
-	const float ts = ((fs->pts - c->first_pts) / (float)fs->time_base.den) - c->offset;
-	const float power = FFMAX(0.0f, FFMIN(1.0f, ts / c->duration));
-	// av_log(ctx, AV_LOG_ERROR, "transition '%s' %llu %f %f\n", c->transition_source, fs->pts - c->first_pts, ts, power);
-	glUniform1f(glGetUniformLocation(c->program, "power"), power);
-
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, c->uFrom);
-	glPixelStorei(GL_UNPACK_ROW_LENGTH, fromFrame->linesize[0] / 3);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, fromLink->w, fromLink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, fromFrame->data[0]);
-
-	glActiveTexture(GL_TEXTURE0 + 1);
-	glBindTexture(GL_TEXTURE_2D, c->uTo);
-	glPixelStorei(GL_UNPACK_ROW_LENGTH, toFrame->linesize[0] / 3);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, toLink->w, toLink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, toFrame->data[0]);
-
-	glDrawArrays(GL_TRIANGLES, 0, 6);
-	glPixelStorei(GL_PACK_ROW_LENGTH, outFrame->linesize[0] / 3);
-	glReadPixels(0, 0, outLink->w, outLink->h, PIXEL_FORMAT, GL_UNSIGNED_BYTE, (GLvoid *)outFrame->data[0]);
-
-	glPixelStorei(GL_PACK_ROW_LENGTH, 0);
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-
-	av_frame_free(&fromFrame);
-
-	return outFrame;
-}
-
-static int blend_frame(FFFrameSync *fs)
-{
-	AVFilterContext *ctx = fs->parent;
-	GLSLContext *c = ctx->priv;
-
-	AVFrame *fromFrame, *toFrame, *outFrame;
-	int ret;
-
-	ret = ff_framesync_dualinput_get(fs, &fromFrame, &toFrame);
-	if (ret < 0) {
-		return ret;
-	}
-
-	if (c->first_pts == AV_NOPTS_VALUE &&
-		fromFrame &&
-		fromFrame->pts != AV_NOPTS_VALUE) {
-		c->first_pts = fromFrame->pts;
-	}
-
-	if (!toFrame) {
-		return ff_filter_frame(ctx->outputs[0], fromFrame);
-	}
-
-	outFrame = apply_transition(fs, ctx, fromFrame, toFrame);
-	if (!outFrame) {
-		return AVERROR(ENOMEM);
-	}
-
-	return ff_filter_frame(ctx->outputs[0], outFrame);
-}
 
 static av_cold void uninit(AVFilterContext *ctx) {
     GLSLContext *c = ctx->priv;
