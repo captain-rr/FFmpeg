@@ -85,6 +85,8 @@ typedef struct GLSLContext {
 	// transition context
 } GLSLContext;
 
+#define OFFSET(x) offsetof(GLSLContext, x)
+
 static const char *const var_names[] = {
     "main_w",    "W", ///< width  of the main    video
     "main_h",    "H", ///< height of the main    video
@@ -1024,7 +1026,6 @@ static int query_formats(AVFilterContext *ctx)
 	return ff_set_common_formats(ctx, ff_make_format_list(formats));
 }
 
-#define OFFSET(x) offsetof(GLSLContext, x)
 static const AVOption glsl_options[] = {
 	{ "shader", "set the shader", OFFSET(shader), AV_OPT_TYPE_INT, {.i64 = SHADER_TYPE_PASSTHROUGH}, 0, SHADER_TYPE_NB-1, FLAGS, "shader" },
 			 { "matrix",  "set matrix like effect",    0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_MATRIX},.flags = FLAGS,.unit = "shader" },
@@ -1043,8 +1044,6 @@ static const AVOption glsl_options[] = {
     {NULL}
 };
 
-AVFILTER_DEFINE_CLASS(glsl);
-
 static const AVFilterPad glsl_inputs[] = {
 	{.name = "default",
 	.type = AVMEDIA_TYPE_VIDEO,
@@ -1057,6 +1056,8 @@ static const AVFilterPad glsl_outputs[] = {
 	{.name = "default",.type = AVMEDIA_TYPE_VIDEO},
 	{NULL}
 };
+
+AVFILTER_DEFINE_CLASS(glsl);
 
 AVFilter ff_vf_glsl = {
   .name          = "glsl",
@@ -1072,16 +1073,13 @@ AVFilter ff_vf_glsl = {
   .flags         = AVFILTER_FLAG_SUPPORT_TIMELINE_GENERIC};
 
 
-#define TRANS_OFFSET(x) offsetof(GLTransitionContext, x)
 static const AVOption gltransition_options[] = {
-	{ "duration", "transition duration in seconds", TRANS_OFFSET(duration), AV_OPT_TYPE_DOUBLE, {.dbl = 1.0}, 0, DBL_MAX, FLAGS },
-	{ "offset", "delay before startingtransition in seconds", TRANS_OFFSET(offset), AV_OPT_TYPE_DOUBLE, {.dbl = 0.0}, 0, DBL_MAX, FLAGS },
-	{ "source", "path to the gl-transition source file (defaults to basic fade)", TRANS_OFFSET(source), AV_OPT_TYPE_STRING, {.str = NULL}, CHAR_MIN, CHAR_MAX, FLAGS },
+	{ "duration", "transition duration in seconds", OFFSET(duration), AV_OPT_TYPE_DOUBLE, {.dbl = 1.0}, 0, DBL_MAX, FLAGS },
+	{ "offset", "delay before startingtransition in seconds", OFFSET(offset), AV_OPT_TYPE_DOUBLE, {.dbl = 0.0}, 0, DBL_MAX, FLAGS },
+	{ "source", "path to the gl-transition source file (defaults to basic fade)", OFFSET(source), AV_OPT_TYPE_STRING, {.str = NULL}, CHAR_MIN, CHAR_MAX, FLAGS },
 	{ "shader", "should always be left at default value", OFFSET(shader), AV_OPT_TYPE_INT, {.i64 = SHADER_TYPE_TRANSITION}, SHADER_TYPE_TRANSITION, SHADER_TYPE_TRANSITION, FLAGS },
 	{NULL}
 };
-
-FRAMESYNC_DEFINE_CLASS(gltransition, GLSLContext, fs);
 
 static const AVFilterPad gltransition_inputs[] = {
   {
@@ -1104,6 +1102,8 @@ static const AVFilterPad gltransition_outputs[] = {
   },
   {NULL}
 };
+
+FRAMESYNC_DEFINE_CLASS(gltransition, GLSLContext, fs);
 
 AVFilter ff_vf_gltransition = {
   .name = "gltransition",
