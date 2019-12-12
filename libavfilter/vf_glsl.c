@@ -476,7 +476,7 @@ static int load_textfile(AVFilterContext *ctx, char *textfile, uint8_t **text)
                textfile);
         return err;
     }
-    av_log(ctx, AV_LOAV_LOG_DEBUGG_VERBOSE,
+    av_log(ctx, AV_LOG_DEBUG,
            "load_textfile '%s' size:%d 2\n",
            textfile, textbuf_size);
 
