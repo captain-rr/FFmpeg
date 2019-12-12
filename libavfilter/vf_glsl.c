@@ -783,7 +783,6 @@ static av_cold int init_transition(AVFilterContext *ctx)
 	av_log(ctx, AV_LOG_VERBOSE, "init_transition %d\n", c->shader);
 	c->fs.on_event = blend_frame;
 	c->first_pts = AV_NOPTS_VALUE;
-	c->shader = SHADER_TYPE_TRANSITION;
 
 	if (c->transition_source) {
 		av_log(ctx, AV_LOG_VERBOSE, "attempt load text file for transition function '%s'\n", c->transition_source);
@@ -851,47 +850,63 @@ static int config_input_props(AVFilterLink *inlink) {
 	av_log(ctx, AV_LOG_DEBUG, "config_input_props\n");
 	//glfw
 	glfwWindowHint(GLFW_VISIBLE, 0);
+	av_log(ctx, AV_LOG_DEBUG, "config_input_props 2\n");
 	c->window = glfwCreateWindow(inlink->w, inlink->h, "", NULL, NULL);
+	av_log(ctx, AV_LOG_DEBUG, "config_input_props 3\n");
 	if (!c->window) {
 		av_log(ctx, AV_LOG_ERROR, "setup_gl ERROR");
 		return -1;
 	}
+	av_log(ctx, AV_LOG_DEBUG, "config_input_props 4\n");
 	glfwMakeContextCurrent(c->window);
+	av_log(ctx, AV_LOG_DEBUG, "config_input_props 5\n");
 
 #ifndef __APPLE__
 	glewExperimental = GL_TRUE;
 	glewInit();
 #endif
 
+	av_log(ctx, AV_LOG_DEBUG, "config_input_props 6\n");
 	glViewport(0, 0, inlink->w, inlink->h);
 
+	av_log(ctx, AV_LOG_DEBUG, "config_input_props 7\n");
 	if ((ret = build_program(ctx)) < 0) {
 		return ret;
 	}
+	av_log(ctx, AV_LOG_DEBUG, "config_input_props 8\n");
 	c->var_values[VAR_MAIN_W] = c->var_values[VAR_MW] = ctx->inputs[MAIN]->w;
 	c->var_values[VAR_MAIN_H] = c->var_values[VAR_MH] = ctx->inputs[MAIN]->h;
 	c->var_values[VAR_POWER] = NAN;
 	c->var_values[VAR_T] = NAN;
 	c->var_values[VAR_POS] = NAN;
 
-	if ((ret = set_expr(&c->power_pexpr, c->power_expr, "power", ctx)) < 0)
-		return ret;
+	if (c->shader == SHADER_TYPE_TRANSITION) {
+		av_log(ctx, AV_LOG_VERBOSE,
+			"from w:%d h:%d to w:%d h:%d\n",
+			ctx->inputs[FROM]->w, ctx->inputs[FROM]->h,
+			ctx->inputs[TO]->w, ctx->inputs[TO]->h);
+	}
+	else {
+		if ((ret = set_expr(&c->power_pexpr, c->power_expr, "power", ctx)) < 0)
+			return ret;
 
-	if (c->eval_mode == EVAL_MODE_INIT) {
-		eval_expr(ctx);
-		av_log(ctx, AV_LOG_INFO, "pow:%f powi:%f\n",
-			c->var_values[VAR_POWER], c->power);
+		if (c->eval_mode == EVAL_MODE_INIT) {
+			eval_expr(ctx);
+			av_log(ctx, AV_LOG_INFO, "pow:%f powi:%f\n",
+				c->var_values[VAR_POWER], c->power);
+		}
+		av_log(ctx, AV_LOG_VERBOSE,
+			"main w:%d h:%d\n",
+			ctx->inputs[MAIN]->w, ctx->inputs[MAIN]->h,
+			av_get_pix_fmt_name(ctx->inputs[MAIN]->format));
 	}
 
-	av_log(ctx, AV_LOG_VERBOSE,
-		"main w:%d h:%d\n",
-		ctx->inputs[MAIN]->w, ctx->inputs[MAIN]->h,
-		av_get_pix_fmt_name(ctx->inputs[MAIN]->format));
 
 	glUseProgram(c->program);
 	setup_vbo(c, ctx);
 	setup_uniforms(inlink);
 	setup_tex(inlink);
+	av_log(ctx, AV_LOG_DEBUG, "config_input_props end\n");
 
 	return 0;
 }
