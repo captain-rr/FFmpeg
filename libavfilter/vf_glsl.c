@@ -135,14 +135,6 @@ static const GLchar *v_shader_source =
   "  texCoord = position* 0.5 + 0.5;\n"
   "}\n";
 
-static const GLchar *v_overlay_shader_source = 
-	"attribute vec2 position;\n"
-	"varying vec2 texCoord;\n"
-	"void main(void) {\n"
-	"  gl_Position = vec4(position, 0, 1);\n"
-	"  texCoord = position* 0.5 + 0.5;\n"
-	"}\n";
-
 static const GLchar *f_shader_source =
   "varying vec2 texCoord;\n"
   "uniform sampler2D tex;\n"
@@ -824,8 +816,10 @@ static av_cold int init_transition(AVFilterContext *ctx)
 }
 
 static av_cold void uninit_transition(AVFilterContext *ctx) {
+	GLSLContext *c;
+
 	av_log(ctx, AV_LOG_DEBUG, "uninit_transition\n");
-	GLSLContext *c = ctx->priv;
+	c = ctx->priv;
 	ff_framesync_uninit(&c->fs);
 	av_log(ctx, AV_LOG_DEBUG, "uninit_transition 2\n");
 
@@ -848,8 +842,11 @@ static av_cold void uninit_transition(AVFilterContext *ctx) {
 
 static int config_input_props(AVFilterLink *inlink) {
 	int ret;
-	AVFilterContext     *ctx = inlink->dst;
-	GLSLContext *c = ctx->priv;
+	AVFilterContext     *ctx;
+	GLSLContext *c;
+
+	ctx = inlink->dst;
+	c = ctx->priv;
 
 	av_log(ctx, AV_LOG_DEBUG, "config_input_props\n");
 	//glfw
@@ -937,13 +934,18 @@ static int config_transition_output(AVFilterLink *outLink)
 }
 
 static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
-    AVFilterContext *ctx     = inlink->dst;
-    AVFilterLink    *outlink = ctx->outputs[0];
-    GLSLContext *c = ctx->priv;
+	AVFilterContext *ctx;
+	AVFilterLink    *outlink;
+	GLSLContext *c;
+	AVFrame *out;
+    
+	ctx     = inlink->dst;
+    outlink = ctx->outputs[0];
+    c = ctx->priv;
 
     av_log(ctx, AV_LOG_VERBOSE, "filter_frame\n");
 
-    AVFrame *out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
+    out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
     if (!out) {
         av_frame_free(&in);
         return AVERROR(ENOMEM);
@@ -967,23 +969,29 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, in->data[0]);
     if (c->shader == SHADER_TYPE_MATRIX){
-        glUniform1fv(glGetUniformLocation(c->program, "power"), 1, &c->power);
         GLfloat time = (GLfloat)(c->var_values[VAR_T] == NAN? c->frame_idx * 330: c->var_values[VAR_T] * 1000);
         GLfloat dropSize = (GLfloat)c->dropSize;
-        av_log(ctx, AV_LOG_VERBOSE, "filter_frame matrix time:%f dropSize:%f\n", time, dropSize);
-        glUniform1fv(glGetUniformLocation(c->program, "time"), 1, &time);
+        
+		av_log(ctx, AV_LOG_VERBOSE, "filter_frame matrix time:%f dropSize:%f\n", time, dropSize);
+		
+		glUniform1fv(glGetUniformLocation(c->program, "power"), 1, &c->power);
+		glUniform1fv(glGetUniformLocation(c->program, "time"), 1, &time);
         glUniform1fv(glGetUniformLocation(c->program, "dropSize"), 1, &dropSize);
     } else if (c->shader == SHADER_TYPE_SHOCKWAVE){
-        glUniform1fv(glGetUniformLocation(c->program, "power"), 1, &c->power);
         GLfloat time = (GLfloat)(c->var_values[VAR_T] == NAN? c->frame_idx * 1.6667: c->var_values[VAR_T] * 5);
-        av_log(ctx, AV_LOG_VERBOSE, "filter_frame shockwave time:%f\n", time);
-        glUniform1fv(glGetUniformLocation(c->program, "time"), 1, &time);
+        
+		av_log(ctx, AV_LOG_VERBOSE, "filter_frame shockwave time:%f\n", time);
+		
+		glUniform1fv(glGetUniformLocation(c->program, "power"), 1, &c->power);
+		glUniform1fv(glGetUniformLocation(c->program, "time"), 1, &time);
     } else if (c->shader == SHADER_TYPE_VINTAGE){
-        glUniform1fv(glGetUniformLocation(c->program, "power"), 1, &c->power);
         GLfloat time = (GLfloat)(c->var_values[VAR_T] == NAN? c->frame_idx * 330: c->var_values[VAR_T] * 1000);
         GLint isColor = c->is_color == IS_COLOR_MODE_TRUE? 1: 0;
-        av_log(ctx, AV_LOG_VERBOSE, "filter_frame vintage isColor:%d time:%f\n", isColor, time);
-        glUniform1fv(glGetUniformLocation(c->program, "time"), 1, &time);
+        
+		av_log(ctx, AV_LOG_VERBOSE, "filter_frame vintage isColor:%d time:%f\n", isColor, time);
+		
+		glUniform1fv(glGetUniformLocation(c->program, "power"), 1, &c->power);
+		glUniform1fv(glGetUniformLocation(c->program, "time"), 1, &time);
         glUniform1iv(glGetUniformLocation(c->program, "isColor"), 1, &isColor);
     }
     glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -1023,8 +1031,11 @@ static av_cold void uninit(AVFilterContext *ctx) {
 //necessary for transition only because of the f-sync
 static int activate_transition(AVFilterContext *ctx)
 {
+	GLSLContext *c;
+	
 	av_log(ctx, AV_LOG_DEBUG, "activate_transition\n");
-	GLSLContext *c = ctx->priv;
+	c = ctx->priv;
+	
 	return ff_framesync_activate(&c->fs);
 }
 
