@@ -485,15 +485,15 @@ static int load_textfile(AVFilterContext *ctx, char *textfile, uint8_t **text)
         return err;
     }
     av_log(ctx, AV_LOG_VERBOSE,
-           "load_textfile '%s' 2\n",
-           textfile);
+           "load_textfile '%s' size:%d 2\n",
+           textfile, textbuf_size);
 
     if (textbuf_size > SIZE_MAX - 1 ||
         !(tmp = av_realloc(*text, textbuf_size + 1))) {
+		av_log(ctx, AV_LOG_ERROR,
+			"The text file '%s' created buffer size issue\n",
+			textfile);
         av_file_unmap(textbuf, textbuf_size);
-        av_log(ctx, AV_LOG_ERROR,
-               "The text file '%s' created buffer size issue\n",
-               textfile);
         return AVERROR(ENOMEM);
     }
     av_log(ctx, AV_LOG_VERBOSE,
@@ -786,7 +786,7 @@ static av_cold int init_transition(AVFilterContext *ctx)
 	GLSLContext *c;
 	uint8_t *transition_function;
 
-	av_log(ctx, AV_LOG_VERBOSE, "init_transition\n");
+	av_log(ctx, AV_LOG_VERBOSE, "init_transition %d\n", c->shader);
 	c = ctx->priv;
 	c->fs.on_event = blend_frame;
 	c->first_pts = AV_NOPTS_VALUE;
@@ -812,7 +812,7 @@ static av_cold int init_transition(AVFilterContext *ctx)
 	snprintf(c->f_shader_source, len * sizeof(*c->f_shader_source), f_transition_shader_template, transition_function);
 	av_log(ctx, AV_LOG_DEBUG, "\n%s\n", c->f_shader_source);
 
-	if (transition_function) {
+	if (c->transition_source) {
 		free(transition_function);
 		transition_function = NULL;
 	}
