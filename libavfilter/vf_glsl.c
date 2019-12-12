@@ -786,8 +786,8 @@ static av_cold int init_transition(AVFilterContext *ctx)
 	GLSLContext *c;
 	uint8_t *transition_function;
 
-	av_log(ctx, AV_LOG_VERBOSE, "init_transition %d\n", c->shader);
 	c = ctx->priv;
+	av_log(ctx, AV_LOG_VERBOSE, "init_transition %d\n", c->shader);
 	c->fs.on_event = blend_frame;
 	c->first_pts = AV_NOPTS_VALUE;
 	c->shader = SHADER_TYPE_TRANSITION;
