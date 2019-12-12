@@ -1023,7 +1023,7 @@ static av_cold void uninit(AVFilterContext *ctx) {
 //necessary for transition only because of the f-sync
 static int activate_transition(AVFilterContext *ctx)
 {
-	av_log(ctx, AV_LOG_DEBUG, "activate_transition\n", ret);
+	av_log(ctx, AV_LOG_DEBUG, "activate_transition\n");
 	GLSLContext *c = ctx->priv;
 	return ff_framesync_activate(&c->fs);
 }
