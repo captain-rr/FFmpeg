@@ -451,7 +451,7 @@ static int process_command(AVFilterContext *ctx, const char *cmd, const char *ar
     int ret;
 	GLSLContext *s = ctx->priv;
 
-    av_log(ctx, AV_LOG_VERBOSE, "process_command cmd:%s args:%s\n",
+    av_log(ctx, AV_LOG_DEBUG, "process_command cmd:%s args:%s\n",
            cmd, args);
 
     if (strcmp(cmd, "power") == 0)
@@ -467,7 +467,7 @@ static int process_command(AVFilterContext *ctx, const char *cmd, const char *ar
         av_log(ctx, AV_LOG_VERBOSE, "pow:%f powi:%f\n",
                s->var_values[VAR_POWER], s->power);
     }
-    av_log(ctx, AV_LOG_VERBOSE, "process_command end\n");
+    av_log(ctx, AV_LOG_DEBUG, "process_command end\n");
     return ret;
 }
 
@@ -484,7 +484,7 @@ static int load_textfile(AVFilterContext *ctx, char *textfile, uint8_t **text)
                textfile);
         return err;
     }
-    av_log(ctx, AV_LOG_VERBOSE,
+    av_log(ctx, AV_LOAV_LOG_DEBUGG_VERBOSE,
            "load_textfile '%s' size:%d 2\n",
            textfile, textbuf_size);
 
@@ -496,17 +496,17 @@ static int load_textfile(AVFilterContext *ctx, char *textfile, uint8_t **text)
         av_file_unmap(textbuf, textbuf_size);
         return AVERROR(ENOMEM);
     }
-    av_log(ctx, AV_LOG_VERBOSE,
+    av_log(ctx, AV_LOG_DEBUG,
            "load_textfile '%s' 3\n",
            textfile);
     *text = tmp;
     memcpy(*text, textbuf, textbuf_size);
-    av_log(ctx, AV_LOG_VERBOSE,
+    av_log(ctx, AV_LOG_DEBUG,
            "load_textfile '%s' 4\n",
            textfile);
     (*text)[textbuf_size] = 0;
     av_file_unmap(textbuf, textbuf_size);
-    av_log(ctx, AV_LOG_VERBOSE,
+    av_log(ctx, AV_LOG_DEBUG,
            "load_textfile '%s' 5\n",
            textfile);
 
@@ -702,6 +702,7 @@ static AVFrame *apply_transition(FFFrameSync *fs,
 	AVFrame *fromFrame,
 	const AVFrame *toFrame)
 {
+	av_log(ctx, AV_LOG_DEBUG, "apply_transition\n");
 	GLSLContext *c = ctx->priv;
 	AVFilterLink *fromLink = ctx->inputs[FROM];
 	AVFilterLink *toLink = ctx->inputs[TO];
@@ -823,20 +824,26 @@ static av_cold int init_transition(AVFilterContext *ctx)
 }
 
 static av_cold void uninit_transition(AVFilterContext *ctx) {
+	av_log(ctx, AV_LOG_DEBUG, "uninit_transition\n");
 	GLSLContext *c = ctx->priv;
 	ff_framesync_uninit(&c->fs);
+	av_log(ctx, AV_LOG_DEBUG, "uninit_transition 2\n");
 
 	if (c->window) {
+		av_log(ctx, AV_LOG_DEBUG, "uninit_transition 3\n");
 		glDeleteTextures(1, &c->uFrom);
 		glDeleteTextures(1, &c->uTo);
 		glDeleteBuffers(1, &c->pos_buf);
 		glDeleteProgram(c->program);
 		glfwDestroyWindow(c->window);
+		av_log(ctx, AV_LOG_DEBUG, "uninit_transition 4\n");
 	}
 
 	if (c->f_shader_source) {
+		av_log(ctx, AV_LOG_DEBUG, "uninit_transition 5\n");
 		av_freep(&c->f_shader_source);
 	}
+	av_log(ctx, AV_LOG_DEBUG, "uninit_transition end\n");
 }
 
 static int config_input_props(AVFilterLink *inlink) {
@@ -844,6 +851,7 @@ static int config_input_props(AVFilterLink *inlink) {
 	AVFilterContext     *ctx = inlink->dst;
 	GLSLContext *c = ctx->priv;
 
+	av_log(ctx, AV_LOG_DEBUG, "config_input_props\n");
 	//glfw
 	glfwWindowHint(GLFW_VISIBLE, 0);
 	c->window = glfwCreateWindow(inlink->w, inlink->h, "", NULL, NULL);
@@ -894,6 +902,7 @@ static int config_input_props(AVFilterLink *inlink) {
 static int config_transition_output(AVFilterLink *outLink)
 {
 	AVFilterContext *ctx = outLink->src;
+	av_log(ctx, AV_LOG_DEBUG, "config_transition_output\n");
 	GLSLContext *c = ctx->priv;
 	AVFilterLink *fromLink = ctx->inputs[FROM];
 	AVFilterLink *toLink = ctx->inputs[TO];
@@ -922,7 +931,9 @@ static int config_transition_output(AVFilterLink *outLink)
 		return ret;
 	}
 
-	return ff_framesync_configure(&c->fs);
+	ret = ff_framesync_configure(&c->fs);
+	av_log(ctx, AV_LOG_DEBUG, "config_transition_output end %d\n", ret);
+	return ret;
 }
 
 static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
@@ -1012,6 +1023,7 @@ static av_cold void uninit(AVFilterContext *ctx) {
 //necessary for transition only because of the f-sync
 static int activate_transition(AVFilterContext *ctx)
 {
+	av_log(ctx, AV_LOG_DEBUG, "activate_transition\n", ret);
 	GLSLContext *c = ctx->priv;
 	return ff_framesync_activate(&c->fs);
 }
