@@ -610,7 +610,7 @@ static int build_program(AVFilterContext *ctx) {
     GLchar* shader;
 	GLSLContext *c = ctx->priv;
 
-    av_log(ctx, AV_LOG_VERBOSE, "build_program %s\n", c->shader);
+    av_log(ctx, AV_LOG_VERBOSE, "build_program %d\n", c->shader);
 
 	if (c->shader == SHADER_TYPE_TRANSITION) {
 		if (!(v_shader = build_shader(ctx, v_shader_source, GL_VERTEX_SHADER))) {
