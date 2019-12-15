@@ -146,7 +146,7 @@ static const GLchar *f_transition_shader_template =
 "varying vec2 texCoord;\n"
 "uniform sampler2D from;\n"
 "uniform sampler2D to;\n"
-"uniform float progress;\n"
+"uniform float power;\n"
 "\n"
 "vec4 getFromColor(vec2 uv) {\n"
 "  return texture2D(from, uv);\n"
@@ -506,17 +506,35 @@ static int load_textfile(AVFilterContext *ctx, char *textfile, uint8_t **text)
 }
 
 static GLuint build_shader(AVFilterContext *ctx, const GLchar *shader_source, GLenum type) {
-    GLint status;
-    GLuint shader = glCreateShader(type);
+	GLint logSize;
+	GLchar *errorLog;
+	GLint status;
+    GLuint shader;
+
     av_log(ctx, AV_LOG_VERBOSE, "build_shader\n");
+	shader = glCreateShader(type);
     if (!shader || !glIsShader(shader)) {
         return 0;
     }
     glShaderSource(shader, 1, &shader_source, 0);
     glCompileShader(shader);
     glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
-    av_log(ctx, AV_LOG_VERBOSE, "build_shader end %d\n", status);
-    return status == GL_TRUE ? shader : 0;
+
+	if (status == GL_TRUE) {
+		av_log(ctx, AV_LOG_VERBOSE, "build_shader end %d\n", status);
+		return shader;
+	}
+	else {
+		logSize = 0;
+		av_log(ctx, AV_LOG_ERROR, "build_shader failed %d\n", status);
+		av_log(ctx, AV_LOG_VERBOSE, "%s\n", shader_source);
+		glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logSize);
+		errorLog = (GLchar*)malloc(logSize);
+		glGetShaderInfoLog(shader, logSize, &logSize, errorLog);
+		av_log(ctx, AV_LOG_VERBOSE, "build_shader compilation error %s\n", errorLog);
+		glDeleteShader(shader); // Don't leak the shader.
+		return 0;
+	}
 }
 
 static void setup_vbo(GLSLContext *c, AVFilterContext *log_ctx) {
@@ -607,7 +625,6 @@ static void setup_uniforms(AVFilterLink *fromLink)
 static int build_program(AVFilterContext *ctx) {
     GLint status;
     GLuint v_shader, f_shader;
-    GLchar* shader;
 	GLSLContext *c = ctx->priv;
 
     av_log(ctx, AV_LOG_VERBOSE, "build_program %d\n", c->shader);
@@ -694,12 +711,16 @@ static AVFrame *apply_transition(FFFrameSync *fs,
 	AVFrame *fromFrame,
 	const AVFrame *toFrame)
 {
-	av_log(ctx, AV_LOG_DEBUG, "apply_transition\n");
-	GLSLContext *c = ctx->priv;
-	AVFilterLink *fromLink = ctx->inputs[FROM];
-	AVFilterLink *toLink = ctx->inputs[TO];
-	AVFilterLink *outLink = ctx->outputs[0];
+	GLSLContext *c;
+	AVFilterLink *fromLink, *toLink, *outLink;
 	AVFrame *outFrame;
+
+	av_log(ctx, AV_LOG_DEBUG, "apply_transition\n");
+	
+	c = ctx->priv;
+	fromLink = ctx->inputs[FROM];
+	toLink = ctx->inputs[TO];
+	outLink = ctx->outputs[0];
 
 	outFrame = ff_get_video_buffer(outLink, outLink->w, outLink->h);
 	if (!outFrame) {
@@ -797,7 +818,7 @@ static av_cold int init_transition(AVFilterContext *ctx)
 	int len = strlen(f_transition_shader_template) + strlen((char *)transition_function);
 	c->f_shader_source = av_calloc(len, sizeof(*c->f_shader_source));
 	if (!c->f_shader_source) {
-		av_log(ctx, AV_LOG_ERROR, "failed alloaction f_shader_source\n");
+		av_log(ctx, AV_LOG_ERROR, "failed allocation f_shader_source\n");
 		return AVERROR(ENOMEM);
 	}
 
@@ -897,8 +918,7 @@ static int config_input_props(AVFilterLink *inlink) {
 		}
 		av_log(ctx, AV_LOG_VERBOSE,
 			"main w:%d h:%d\n",
-			ctx->inputs[MAIN]->w, ctx->inputs[MAIN]->h,
-			av_get_pix_fmt_name(ctx->inputs[MAIN]->format));
+			ctx->inputs[MAIN]->w, ctx->inputs[MAIN]->h);
 	}
 
 
@@ -913,11 +933,15 @@ static int config_input_props(AVFilterLink *inlink) {
 
 static int config_transition_output(AVFilterLink *outLink)
 {
-	AVFilterContext *ctx = outLink->src;
+	AVFilterContext *ctx;
+	GLSLContext *c;
+	AVFilterLink *fromLink, *toLink;
+
+	ctx = outLink->src;
 	av_log(ctx, AV_LOG_DEBUG, "config_transition_output\n");
-	GLSLContext *c = ctx->priv;
-	AVFilterLink *fromLink = ctx->inputs[FROM];
-	AVFilterLink *toLink = ctx->inputs[TO];
+	c = ctx->priv;
+	fromLink = ctx->inputs[FROM];
+	toLink = ctx->inputs[TO];
 	int ret;
 
 	if (fromLink->format != toLink->format) {
