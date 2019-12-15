@@ -59,8 +59,8 @@ typedef struct GLSLContext {
 	char *fs_textfile;
 
 	// file contents
-    uint8_t *vs_text;
-    uint8_t *fs_text;
+    char *vs_text;
+	char *fs_text;
 
     double var_values[VAR_VARS_NB];
 	AVExpr *power_pexpr; // power expression struct
@@ -463,7 +463,7 @@ static int process_command(AVFilterContext *ctx, const char *cmd, const char *ar
     return ret;
 }
 
-static int load_textfile(AVFilterContext *ctx, char *textfile, uint8_t **text)
+static int load_textfile(AVFilterContext *ctx, char *textfile, char **text)
 {
 	unsigned long fsize;
 	FILE *f;
@@ -486,14 +486,14 @@ static int load_textfile(AVFilterContext *ctx, char *textfile, uint8_t **text)
 	av_log(ctx, AV_LOG_DEBUG, "load_textfile 3 %d\n", fsize);
 	fseek(f, 0, SEEK_SET);
 
-	*text = malloc(fsize + 2);
+	*text = malloc(fsize + 1);
 	av_log(ctx, AV_LOG_DEBUG, "load_textfile 4\n");
 	fread(*text, fsize, 1, f);
 	av_log(ctx, AV_LOG_DEBUG, "load_textfile 5\n");
 	fclose(f);
 	av_log(ctx, AV_LOG_DEBUG, "load_textfile 6\n");
 
-	*text[fsize] = (uint8_t)0;
+	(*text)[fsize] = 0;
 	av_log(ctx, AV_LOG_DEBUG, "load_textfile 7\n");
 
     return 0;
@@ -791,7 +791,7 @@ static av_cold int init_transition(AVFilterContext *ctx)
 {
 	int err, status;
 	GLSLContext *c;
-	uint8_t *transition_function;
+	char *transition_function;
 
 	c = ctx->priv;
 	av_log(ctx, AV_LOG_VERBOSE, "init_transition %d\n", c->shader);
