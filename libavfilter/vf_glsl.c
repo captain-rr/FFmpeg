@@ -486,23 +486,22 @@ static int load_textfile(AVFilterContext *ctx, char *textfile, uint8_t **text)
 	av_log(ctx, AV_LOG_DEBUG, "load_textfile 3 %d\n", fsize);
 	fseek(f, 0, SEEK_SET);
 
-	*text = malloc(fsize + 1);
+	*text = malloc(fsize + 2);
 	av_log(ctx, AV_LOG_DEBUG, "load_textfile 4\n");
 	fread(*text, fsize, 1, f);
 	av_log(ctx, AV_LOG_DEBUG, "load_textfile 5\n");
 	fclose(f);
 	av_log(ctx, AV_LOG_DEBUG, "load_textfile 6\n");
 
-	*text[fsize] = 0;
+	*text[fsize] = (uint8_t)0;
 	av_log(ctx, AV_LOG_DEBUG, "load_textfile 7\n");
 
     return 0;
 }
 
 static GLuint build_shader(AVFilterContext *ctx, const GLchar *shader_source, GLenum type) {
-	GLint logSize;
+	GLint logSize, status;
 	GLchar *errorLog;
-	GLint status;
     GLuint shader;
 
     av_log(ctx, AV_LOG_VERBOSE, "build_shader\n");
