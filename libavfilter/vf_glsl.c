@@ -465,42 +465,36 @@ static int process_command(AVFilterContext *ctx, const char *cmd, const char *ar
 
 static int load_textfile(AVFilterContext *ctx, char *textfile, uint8_t **text)
 {
-    int err;
-    uint8_t *textbuf;
-    uint8_t *tmp;
-    size_t textbuf_size;
+	unsigned long fsize;
+	FILE *f;
 
-    if ((err = av_file_map(textfile, &textbuf, &textbuf_size, 0, ctx)) < 0) {
-        av_log(ctx, AV_LOG_ERROR,
-               "The text file '%s' could not be read or is empty\n",
-               textfile);
-        return err;
-    }
-    av_log(ctx, AV_LOG_DEBUG,
-           "load_textfile '%s' size:%d 2\n",
-           textfile, textbuf_size);
+	av_log(ctx, AV_LOG_VERBOSE,
+		"load_textfile '%s'\n",
+		textfile);
 
-    if (textbuf_size > SIZE_MAX - 1 ||
-        !(tmp = av_realloc(*text, textbuf_size + 1))) {
-		av_log(ctx, AV_LOG_ERROR,
-			"The text file '%s' created buffer size issue\n",
-			textfile);
-        av_file_unmap(textbuf, textbuf_size);
-        return AVERROR(ENOMEM);
-    }
-    av_log(ctx, AV_LOG_DEBUG,
-           "load_textfile '%s' 3\n",
-           textfile);
-    *text = tmp;
-    memcpy(*text, textbuf, textbuf_size);
-    av_log(ctx, AV_LOG_DEBUG,
-           "load_textfile '%s' 4\n",
-           textfile);
-    (*text)[textbuf_size] = 0;
-    av_file_unmap(textbuf, textbuf_size);
-    av_log(ctx, AV_LOG_DEBUG,
-           "load_textfile '%s' 5\n",
-           textfile);
+	f = fopen(textfile, "rb");
+
+	if (!f) {
+		av_log(ctx, AV_LOG_ERROR, "invalid transition source file \"%s\"\n", textfile);
+		return -1;
+	}
+
+	av_log(ctx, AV_LOG_DEBUG, "load_textfile 2\n");
+
+	fseek(f, 0, SEEK_END);
+	fsize = ftell(f);
+	av_log(ctx, AV_LOG_DEBUG, "load_textfile 3 %d\n", fsize);
+	fseek(f, 0, SEEK_SET);
+
+	*text = malloc(fsize + 1);
+	av_log(ctx, AV_LOG_DEBUG, "load_textfile 4\n");
+	fread(*text, fsize, 1, f);
+	av_log(ctx, AV_LOG_DEBUG, "load_textfile 5\n");
+	fclose(f);
+	av_log(ctx, AV_LOG_DEBUG, "load_textfile 6\n");
+
+	*text[fsize] = 0;
+	av_log(ctx, AV_LOG_DEBUG, "load_textfile 7\n");
 
     return 0;
 }
