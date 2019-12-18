@@ -357,7 +357,7 @@ static double eval_expr(Parser *p, AVExpr *e)
             double d2;
 			if (d == 0 &&
 				(e->type == e_mul || e->type == e_div)) {
-				d2 = 0;
+				d2 = 1;
 			}
 			else {
 				d2 = eval_expr(p, e->param[1]);
