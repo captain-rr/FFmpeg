@@ -354,7 +354,14 @@ static double eval_expr(Parser *p, AVExpr *e)
         }
         default: {
             double d = eval_expr(p, e->param[0]);
-            double d2 = eval_expr(p, e->param[1]);
+            double d2;
+			if (d == 0 &&
+				(e->type == e_mul || e->type == e_div)) {
+				d2 = 0;
+			}
+			else {
+				d2 = eval_expr(p, e->param[1]);
+			}
             switch (e->type) {
                 case e_mod: return e->value * (d - floor((!CONFIG_FTRAPV || d2) ? d / d2 : d * INFINITY) * d2);
                 case e_gcd: return e->value * av_gcd(d,d2);
