@@ -220,9 +220,9 @@ static double eval_expr(Parser *p, AVExpr *e)
         }
         case e_lerp: {
             double v0 = eval_expr(p, e->param[0]);
-            double v1 = eval_expr(p, e->param[1]);
             double f  = eval_expr(p, e->param[2]);
-            return v0 + (v1 - v0) * f;
+			double v1 = (f == 0)? 0: eval_expr(p, e->param[1]);
+			return v0 + f * (v1 - v0);
         }
         case e_easein_sine: {
             double t = eval_expr(p, e->param[0]);
