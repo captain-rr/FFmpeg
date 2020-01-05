@@ -417,6 +417,14 @@ static const GLchar *f_adjust_shader_source =
 
 "uniform float power;\n"
 
+"vec3 applyHue(vec3 aColor, float aHue)\n"
+"{\n"
+"    float angle = radians(aHue);\n"
+"    vec3 k = vec3(0.57735, 0.57735, 0.57735);\n"
+"    float cosAngle = cos(angle);\n"
+"    return aColor * cosAngle + cross(k, aColor) * sin(angle) + k * dot(k, aColor) * (1.0 - cosAngle);\n"
+"}"
+
 "vec4 applyHSBEffect(vec4 startColor, vec4 hsbc)\n"
 "{\n"
 "    float _Hue = 360.0 * hsbc.r;\n"
