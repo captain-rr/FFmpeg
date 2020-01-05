@@ -1219,7 +1219,7 @@ static av_cold void uninit(AVFilterContext *ctx) {
 	FREE_PARAM(b)
 	FREE_PARAM(brightness)
 	FREE_PARAM(contrast)
-	FREE_PARAM(saturtation)
+	FREE_PARAM(saturation)
     
     av_log(ctx, AV_LOG_VERBOSE, "uninit6\n");
 }
