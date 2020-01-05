@@ -55,6 +55,15 @@ typedef struct GLSLContext {
 	int is_color;		// for vintage filter
     float dropSize;		// for matrix filter
 	char *power_expr;	// power string expression
+	
+	char *r_expr;	// r string expression
+	char *g_expr;	// g string expression
+	char *b_expr;	// b string expression
+	
+	char *brightness_expr;	// brightness string expression
+	char *contrast_expr;	// contrast string expression
+	char *saturation_expr;	// saturation string expression
+	
 	char *vs_textfile;
 	char *fs_textfile;
 
@@ -65,6 +74,20 @@ typedef struct GLSLContext {
     double var_values[VAR_VARS_NB];
 	AVExpr *power_pexpr; // power expression struct
 	float power; // power value
+
+	AVExpr *r_pexpr; // red expression struct
+	float adjust_r; // adjust red value
+	AVExpr *g_pexpr; // green expression struct
+	float adjust_g; // adjust green value
+	AVExpr *b_pexpr; // blue expression struct
+	float adjust_b; // adjust blue value
+
+	AVExpr *brightness_pexpr; // brightness expression struct
+	float brightness; // adjust brightness value
+	AVExpr *contrast_pexpr; // contrast expression struct
+	float contrast; // adjust contrast value
+	AVExpr *saturation_pexpr; // saturation expression struct
+	float saturation; // adjust saturation value
 
 	// transition context
 		FFFrameSync fs;
@@ -114,6 +137,7 @@ enum ShaderTypes {
 	SHADER_TYPE_MATRIX,
 	SHADER_TYPE_SHOCKWAVE,
 	SHADER_TYPE_VINTAGE,
+	SHADER_TYPE_ADJUST,
 	SHADER_TYPE_TRANSITION,
 	SHADER_TYPE_NB,
 };
@@ -380,6 +404,46 @@ static const GLchar *f_matrix_shader_source =
 "    gl_FragColor = mix(originalColor,result,power);\n"
 "}\n";
 
+static const GLchar *f_adjust_shader_source =
+"varying vec2 texCoord;\n"
+"uniform sampler2D tex;\n"
+
+"uniform float r;\n"
+"uniform float g;\n"
+"uniform float b;\n"
+"uniform float brightness;\n"
+"uniform float contrast;\n"
+"uniform float saturation;\n"
+
+"uniform float power;\n"
+
+"vec4 applyHSBEffect(vec4 startColor, vec3 hsbc)\n"
+"{\n"
+"    float _Brightness = hsbc.r * 2.0 - 1.0;\n"
+"    float _Contrast = hsbc.g * 2.0;\n"
+"    float _Saturation = hsbc.b * 2.0;\n"
+
+"    vec4 outputColor = startColor;\n"
+"    outputColor.rgb = (outputColor.rgb - 0.5) * (_Contrast) + 0.5;\n"
+"    outputColor.rgb = outputColor.rgb + _Brightness;\n"
+"    float intensity = dot(outputColor.rgb, vec3(0.299,0.587,0.114));\n"
+"    vec3 intensity3 = vec3(intensity,intensity,intensity);\n"
+"    outputColor.rgb = mix(intensity3, outputColor.rgb, _Saturation);\n"
+
+"    return outputColor;\n"
+"}\n"
+
+"void main() {\n"
+"  vec4 diffuseColor = texture2D(tex, texCoord);\n"
+"  vec4 originalColor = diffuseColor;\n"
+"  vec3 sat = applyHSBEffect(diffuseColor,vec3(brightness,contrast,saturation)).rgb;\n"
+"  vec3 gamma = vec3(r,g,b);\n"
+
+"  diffuseColor = vec4(sat.r,sat.g,sat.b,1.0);\n"
+"  diffuseColor.rgb = pow(diffuseColor.rgb, (1.0 / gamma));\n"
+"  gl_FragColor = mix(originalColor,diffuseColor,power);\n"
+"}\n";
+
 // default to a basic fade effect
 static const uint8_t *f_default_transition_source =
 "vec4 transition (vec2 uv) {\n"
@@ -413,6 +477,15 @@ static void eval_expr(AVFilterContext *ctx)
     av_log(ctx, AV_LOG_VERBOSE, "eval_expr end\n");
 }
 
+static void eval_secondary_expr(AVFilterContext *ctx, AVExpr *pexpr, float *value, const char *name)
+{
+	GLSLContext *s = ctx->priv;
+	av_log(ctx, AV_LOG_VERBOSE, "eval_expr '%s'\n", name);
+
+	*value = av_clipf(av_expr_eval(pexpr, s->var_values, NULL), 0.0, 5.0);
+	av_log(ctx, AV_LOG_VERBOSE, "eval_expr '%s' end\n", name);
+}
+
 static int set_expr(AVExpr **pexpr, const char *expr, const char *option, void *log_ctx)
 {
     int ret;
@@ -437,6 +510,20 @@ static int set_expr(AVExpr **pexpr, const char *expr, const char *option, void *
     return 0;
 }
 
+static inline int set_param(AVExpr **pexpr, const char *args, const char *cmd,
+	float *value, const char name, AVFilterContext *ctx)
+{
+	int ret;
+	GLSLContext *s = ctx->priv;
+
+	if ((ret = set_expr(pexpr, args, cmd, ctx)) < 0)
+		return ret;
+	if (s->eval_mode == EVAL_MODE_INIT)
+		eval_secondary_expr(ctx, *pexpr, value, name);
+	
+	return 0;
+}
+
 static int process_command(AVFilterContext *ctx, const char *cmd, const char *args,
                            char *res, int res_len, int flags)
 {
@@ -446,10 +533,21 @@ static int process_command(AVFilterContext *ctx, const char *cmd, const char *ar
     av_log(ctx, AV_LOG_DEBUG, "process_command cmd:%s args:%s\n",
            cmd, args);
 
-    if (strcmp(cmd, "power") == 0)
-        ret = set_expr(&s->power_pexpr, args, cmd, ctx);
-    else
-        ret = AVERROR(ENOSYS);
+	if (strcmp(cmd, "power") == 0)
+		ret = set_expr(&s->power_pexpr, args, cmd, ctx);
+	else
+		ret = AVERROR(ENOSYS);
+
+#define SET_PARAM(param_name, value_prop_name)                              \
+    if (!strcmp(cmd, #param_name)) return set_param(&s->param_name##_pexpr, args, cmd, &s->value_prop_name##, #param_name, ctx);
+
+	SET_PARAM(brightness, brightness)
+	else SET_PARAM(saturation, saturation)
+	else SET_PARAM(contrast, contrast)
+	else SET_PARAM(r, adjust_r)
+	else SET_PARAM(g, adjust_g)
+	else SET_PARAM(b, adjust_b)
+	else return AVERROR(ENOSYS);
 
     if (ret < 0)
         return ret;
@@ -609,6 +707,13 @@ static void setup_uniforms(AVFilterLink *fromLink)
 	else if (c->shader == SHADER_TYPE_VINTAGE) {
 		glUniform1f(glGetUniformLocation(c->program, "time"), 0.0f);
 		glUniform1i(glGetUniformLocation(c->program, "isColor"), 0);
+	} if (c->shader == SHADER_TYPE_ADJUST) {
+		glUniform1f(glGetUniformLocation(c->program, "r"), 0.0f);
+		glUniform1i(glGetUniformLocation(c->program, "g"), 0.0f);
+		glUniform1f(glGetUniformLocation(c->program, "b"), 0.0f);
+		glUniform1i(glGetUniformLocation(c->program, "brightness"), 0.0f);
+		glUniform1f(glGetUniformLocation(c->program, "contrast"), 0.0f);
+		glUniform1i(glGetUniformLocation(c->program, "saturation"), 0.0f);
 	}
 	//else if (c->shader == SHADER_TYPE_TRANSITION) {
 
@@ -654,6 +759,9 @@ static int build_program(AVFilterContext *ctx) {
 		}
 		else if (c->shader == SHADER_TYPE_VINTAGE) {
 			f_shader = build_shader(ctx, f_vintage_shader_source, GL_FRAGMENT_SHADER);
+		}
+		else if (c->shader == SHADER_TYPE_ADJUST) {
+			f_shader = build_shader(ctx, f_adjust_shader_source, GL_FRAGMENT_SHADER);
 		}
 		else {
 			f_shader = build_shader(ctx, f_shader_source, GL_FRAGMENT_SHADER);
@@ -901,17 +1009,39 @@ static int config_input_props(AVFilterLink *inlink) {
 			ctx->inputs[TO]->w, ctx->inputs[TO]->h);
 	}
 	else {
-		if ((ret = set_expr(&c->power_pexpr, c->power_expr, "power", ctx)) < 0)
-			return ret;
+		if (c->shader == SHADER_TYPE_ADJUST) {
+			if ((ret = set_expr(&c->contrast_pexpr, c->contrast_expr, "contrast", ctx)) < 0 ||
+				(ret = set_expr(&c->brightness_pexpr, c->brightness_expr, "brightness", ctx)) < 0 ||
+				(ret = set_expr(&c->saturation_pexpr, c->saturation_expr, "saturation", ctx)) < 0 ||
+				(ret = set_expr(&c->r_pexpr, c->r_expr, "r", ctx)) < 0 ||
+				(ret = set_expr(&c->g_pexpr, c->g_expr, "g", ctx)) < 0 ||
+				(ret = set_expr(&c->b_pexpr, c->b_expr, "b", ctx)) < 0 ||
+				(ret = set_expr(&c->power_pexpr, c->power_expr, "power", ctx)) < 0)
+				return ret;
+		}
+		else {
+			if ((ret = set_expr(&c->power_pexpr, c->power_expr, "power", ctx)) < 0)
+				return ret;
+		}
 
 		if (c->eval_mode == EVAL_MODE_INIT) {
 			eval_expr(ctx);
 			av_log(ctx, AV_LOG_INFO, "pow:%f powi:%f\n",
 				c->var_values[VAR_POWER], c->power);
+			if (c->shader == SHADER_TYPE_ADJUST) {
+				eval_secondary_expr(ctx, c->r_pexpr, &(c->adjust_r), "r");
+				eval_secondary_expr(ctx, c->g_pexpr, &(c->adjust_g), "g");
+				eval_secondary_expr(ctx, c->b_pexpr, &(c->adjust_b), "b");
+
+				eval_secondary_expr(ctx, c->brightness_pexpr, &(c->brightness), "brightness");
+				eval_secondary_expr(ctx, c->contrast_pexpr,	  &(c->contrast),	"contrast");
+				eval_secondary_expr(ctx, c->saturation_pexpr, &(c->saturation), "saturation");
+
+				av_log(ctx, AV_LOG_INFO, "rgb:%f,%f,%f bcs: %f,%f,%f \n",
+					c->adjust_r, c->adjust_g, c->adjust_b,
+					c->brightness, c->contrast, c->saturation);
+			}
 		}
-		av_log(ctx, AV_LOG_VERBOSE,
-			"main w:%d h:%d\n",
-			ctx->inputs[MAIN]->w, ctx->inputs[MAIN]->h);
 	}
 
 
@@ -997,6 +1127,20 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
       eval_expr(ctx);
       av_log(ctx, AV_LOG_VERBOSE, "filter_frame pow:%f powi:%f time:%f\n",
              c->var_values[VAR_POWER], c->power, c->var_values[VAR_T]);
+
+	  if (c->shader == SHADER_TYPE_ADJUST) {
+		  eval_secondary_expr(ctx, c->r_pexpr, &(c->adjust_r), "r");
+		  eval_secondary_expr(ctx, c->g_pexpr, &(c->adjust_g), "g");
+		  eval_secondary_expr(ctx, c->b_pexpr, &(c->adjust_b), "b");
+
+		  eval_secondary_expr(ctx, c->brightness_pexpr, &(c->brightness), "brightness");
+		  eval_secondary_expr(ctx, c->contrast_pexpr, &(c->contrast), "contrast");
+		  eval_secondary_expr(ctx, c->saturation_pexpr, &(c->saturation), "saturation");
+
+		  av_log(ctx, AV_LOG_VERBOSE, "rgb:%f,%f,%f bcs: %f,%f,%f \n",
+			  c->adjust_r, c->adjust_g, c->adjust_b,
+			  c->brightness, c->contrast, c->saturation);
+	  }
     }
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, in->data[0]);
@@ -1025,7 +1169,16 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 		glUniform1fv(glGetUniformLocation(c->program, "power"), 1, &c->power);
 		glUniform1fv(glGetUniformLocation(c->program, "time"), 1, &time);
         glUniform1iv(glGetUniformLocation(c->program, "isColor"), 1, &isColor);
-    }
+    } else if (c->shader == SHADER_TYPE_ADJUST) {
+		av_log(ctx, AV_LOG_VERBOSE, "filter_frame adjust\n");
+
+		glUniform1fv(glGetUniformLocation(c->program, "r"), 1, &(c->adjust_r));
+		glUniform1fv(glGetUniformLocation(c->program, "g"), 1, &(c->adjust_g));
+		glUniform1iv(glGetUniformLocation(c->program, "b"), 1, &(c->adjust_b));
+		glUniform1fv(glGetUniformLocation(c->program, "brightness"), 1, &(c->brightness));
+		glUniform1fv(glGetUniformLocation(c->program, "contrast"),	 1, &(c->contrast));
+		glUniform1iv(glGetUniformLocation(c->program, "saturation"), 1, &(c->saturation));
+	}
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glReadPixels(0, 0, outlink->w, outlink->h, PIXEL_FORMAT, GL_UNSIGNED_BYTE, (GLvoid *)out->data[0]);
 
@@ -1052,11 +1205,22 @@ static av_cold void uninit(AVFilterContext *ctx) {
         glfwDestroyWindow(c->window);
         av_log(ctx, AV_LOG_VERBOSE, "uninit4\n");
     }
-    if (c->power_pexpr){
-        av_expr_free(c->power_pexpr);
-        av_log(ctx, AV_LOG_VERBOSE, "uninit5\n");
-        c->power_pexpr = NULL;
-    }
+
+#define FREE_PARAM(param_name)                              \
+	if (c->param_name##_pexpr){								\
+		av_expr_free(c->param_name##_pexpr);				\
+		av_log(ctx, AV_LOG_VERBOSE, "uninit5_%s\n", #param_name);			\
+		c->param_name##_pexpr = NULL;						\
+	}
+
+	FREE_PARAM(power)
+	FREE_PARAM(r)
+	FREE_PARAM(g)
+	FREE_PARAM(b)
+	FREE_PARAM(brightness)
+	FREE_PARAM(contrast)
+	FREE_PARAM(saturtation)
+    
     av_log(ctx, AV_LOG_VERBOSE, "uninit6\n");
 }
 
@@ -1086,13 +1250,21 @@ static const AVOption glsl_options[] = {
 			 { "matrix",  "set matrix like effect",    0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_MATRIX},.flags = FLAGS,.unit = "shader" },
 			 { "shockwave", "set shockwave like effect", 0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_SHOCKWAVE},.flags = FLAGS,.unit = "shader" },
 			 { "vintage", "set vintage like effect", 0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_VINTAGE},.flags = FLAGS,.unit = "shader" },
+			 { "adjust", "set vintage like effect", 0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_ADJUST},.flags = FLAGS,.unit = "shader" },
+			 { "none", "passthrough", 0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_PASSTHROUGH},.flags = FLAGS,.unit = "shader" },
 	{ "vs_textfile",    "set a text file for vertex shader",        OFFSET(vs_textfile),           AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX, FLAGS},
     { "fs_textfile",    "set a text file for fragment shader",      OFFSET(fs_textfile),           AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX, FLAGS},
-    { "power", "set the power expression", OFFSET(power_expr), AV_OPT_TYPE_STRING, {.str = "0"}, CHAR_MIN, CHAR_MAX, FLAGS },
-    { "eval", "specify when to evaluate expressions", OFFSET(eval_mode), AV_OPT_TYPE_INT, {.i64 = EVAL_MODE_FRAME}, 0, EVAL_MODE_NB-1, FLAGS, "eval" },
+	{ "power", "set the power expression", OFFSET(power_expr), AV_OPT_TYPE_STRING, {.str = "0"}, CHAR_MIN, CHAR_MAX, FLAGS },
+	{ "eval", "specify when to evaluate expressions", OFFSET(eval_mode), AV_OPT_TYPE_INT, {.i64 = EVAL_MODE_FRAME}, 0, EVAL_MODE_NB-1, FLAGS, "eval" },
              { "init",  "eval expressions once during initialization", 0, AV_OPT_TYPE_CONST, {.i64=EVAL_MODE_INIT},  .flags = FLAGS, .unit = "eval" },
              { "frame", "eval expressions per-frame",                  0, AV_OPT_TYPE_CONST, {.i64=EVAL_MODE_FRAME}, .flags = FLAGS, .unit = "eval" },
-    { "is_color", "relevant to vintage, specify color mode", OFFSET(is_color), AV_OPT_TYPE_INT, {.i64 = IS_COLOR_MODE_TRUE}, 0, IS_COLOR_MODE_NB-1, FLAGS, "is_color" },
+	{ "r", "set the r expression", OFFSET(r_expr), AV_OPT_TYPE_STRING, {.str = "1"}, CHAR_MIN, CHAR_MAX, FLAGS },
+	{ "g", "set the g expression", OFFSET(g_expr), AV_OPT_TYPE_STRING, {.str = "1"}, CHAR_MIN, CHAR_MAX, FLAGS },
+	{ "b", "set the b expression", OFFSET(b_expr), AV_OPT_TYPE_STRING, {.str = "1"}, CHAR_MIN, CHAR_MAX, FLAGS },
+	{ "brightness", "set the brightness expression", OFFSET(brightness_expr), AV_OPT_TYPE_STRING, {.str = "0.5"}, CHAR_MIN, CHAR_MAX, FLAGS },
+	{ "contrast", "set the contrast expression", OFFSET(contrast_expr), AV_OPT_TYPE_STRING, {.str = "0.5"}, CHAR_MIN, CHAR_MAX, FLAGS },
+	{ "saturation", "set the saturation expression", OFFSET(saturation_expr), AV_OPT_TYPE_STRING, {.str = "0.5"}, CHAR_MIN, CHAR_MAX, FLAGS },
+	{ "is_color", "relevant to vintage, specify color mode", OFFSET(is_color), AV_OPT_TYPE_INT, {.i64 = IS_COLOR_MODE_TRUE}, 0, IS_COLOR_MODE_NB-1, FLAGS, "is_color" },
              { "true",  "color mode",    0, AV_OPT_TYPE_CONST, {.i64=IS_COLOR_MODE_TRUE},  .flags = FLAGS, .unit = "is_color" },
              { "false", "no color mode", 0, AV_OPT_TYPE_CONST, {.i64=IS_COLOR_MODE_FALSE}, .flags = FLAGS, .unit = "is_color" },
     { "drop_size",  "matrix drop size", OFFSET(dropSize), AV_OPT_TYPE_FLOAT, {.dbl=5.0}, 0, 100, FLAGS },
