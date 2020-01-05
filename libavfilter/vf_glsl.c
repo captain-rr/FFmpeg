@@ -417,13 +417,15 @@ static const GLchar *f_adjust_shader_source =
 
 "uniform float power;\n"
 
-"vec4 applyHSBEffect(vec3 startColor, vec3 hsbc)\n"
+"vec4 applyHSBEffect(vec4 startColor, vec4 hsbc)\n"
 "{\n"
-"    float _Brightness = hsbc.r * 2.0 - 1.0;\n"
-"    float _Contrast = hsbc.g * 2.0;\n"
-"    float _Saturation = hsbc.b * 2.0;\n"
+"    float _Hue = 360.0 * hsbc.r;\n"
+"    float _Brightness = hsbc.g * 2.0 - 1.0;\n"
+"    float _Contrast = hsbc.b * 2.0;\n"
+"    float _Saturation = hsbc.a * 2.0;\n"
 
 "    vec4 outputColor = startColor;\n"
+"    outputColor.rgb = applyHue(outputColor.rgb, _Hue);\n"
 "    outputColor.rgb = (outputColor.rgb - 0.5) * (_Contrast) + 0.5;\n"
 "    outputColor.rgb = outputColor.rgb + _Brightness;\n"
 "    float intensity = dot(outputColor.rgb, vec3(0.299,0.587,0.114));\n"
@@ -436,7 +438,7 @@ static const GLchar *f_adjust_shader_source =
 "void main() {\n"
 "  vec4 diffuseColor = texture2D(tex, texCoord);\n"
 "  vec4 originalColor = diffuseColor;\n"
-"  vec3 sat = applyHSBEffect(diffuseColor,vec3(brightness,contrast,saturation)).rgb;\n"
+"  vec3 sat = applyHSBEffect(diffuseColor,vec4(0, brightness,contrast,saturation)).rgb;\n"
 "  vec3 gamma = vec3(r,g,b);\n"
 
 "  diffuseColor = vec4(sat.r,sat.g,sat.b,1.0);\n"
