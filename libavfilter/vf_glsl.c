@@ -417,7 +417,7 @@ static const GLchar *f_adjust_shader_source =
 
 "uniform float power;\n"
 
-"vec4 applyHSBEffect(vec4 startColor, vec3 hsbc)\n"
+"vec4 applyHSBEffect(vec3 startColor, vec3 hsbc)\n"
 "{\n"
 "    float _Brightness = hsbc.r * 2.0 - 1.0;\n"
 "    float _Contrast = hsbc.g * 2.0;\n"
