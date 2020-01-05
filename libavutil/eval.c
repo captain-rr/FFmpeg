@@ -352,16 +352,17 @@ static double eval_expr(Parser *p, AVExpr *e)
             p->var[0] = var0;
             return -low_v<high_v ? low : high;
         }
+		case e_mul: 
+		case e_div: {
+			double d = eval_expr(p, e->param[0]);
+			double d2 = (d == 0)? 1: eval_expr(p, e->param[1]);
+			return e->type == e_mul?
+				e->value * (d * d2):
+				e->value * ((!CONFIG_FTRAPV || d2) ? (d / d2) : d * INFINITY);
+		}
         default: {
             double d = eval_expr(p, e->param[0]);
-            double d2;
-			if (d == 0 &&
-				(e->type == e_mul || e->type == e_div)) {
-				d2 = 1;
-			}
-			else {
-				d2 = eval_expr(p, e->param[1]);
-			}
+            double d2 = eval_expr(p, e->param[1]);
             switch (e->type) {
                 case e_mod: return e->value * (d - floor((!CONFIG_FTRAPV || d2) ? d / d2 : d * INFINITY) * d2);
                 case e_gcd: return e->value * av_gcd(d,d2);
@@ -373,8 +374,6 @@ static double eval_expr(Parser *p, AVExpr *e)
                 case e_lt:  return e->value * (d <  d2 ? 1.0 : 0.0);
                 case e_lte: return e->value * (d <= d2 ? 1.0 : 0.0);
                 case e_pow: return e->value * pow(d, d2);
-                case e_mul: return e->value * (d * d2);
-                case e_div: return e->value * ((!CONFIG_FTRAPV || d2 ) ? (d / d2) : d * INFINITY);
                 case e_add: return e->value * (d + d2);
                 case e_last:return e->value * d2;
                 case e_st : return e->value * (p->var[av_clip(d, 0, VARS-1)]= d2);
