@@ -539,7 +539,7 @@ static int process_command(AVFilterContext *ctx, const char *cmd, const char *ar
 		ret = AVERROR(ENOSYS);
 
 #define SET_PARAM(param_name, value_prop_name)                              \
-    if (!strcmp(cmd, #param_name)) return set_param(&s->param_name##_pexpr, args, cmd, &s->value_prop_name##, #param_name, ctx);
+    if (!strcmp(cmd, #param_name)) return set_param(&s->param_name##_pexpr, args, cmd, &s->value_prop_name, #param_name, ctx);
 
 	SET_PARAM(brightness, brightness)
 	else SET_PARAM(saturation, saturation)
