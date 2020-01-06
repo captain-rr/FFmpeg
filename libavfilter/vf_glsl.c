@@ -1110,10 +1110,12 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 	AVFilterLink    *outlink;
 	GLSLContext *c;
 	AVFrame *out;
+	int skipRender;
     
 	ctx     = inlink->dst;
     outlink = ctx->outputs[0];
     c = ctx->priv;
+    skipRender = 0;
 
     av_log(ctx, AV_LOG_VERBOSE, "filter_frame\n");
 
@@ -1152,8 +1154,11 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 			  c->brightness, c->contrast, c->saturation);
 	  }
     }
+    if (c->power == 0.0){
+        av_log(ctx, AV_LOG_VERBOSE, "filter_frame skip render because power is 0\n");
+        skipRender = 1;
+    }
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, in->data[0]);
     if (c->shader == SHADER_TYPE_MATRIX){
         GLfloat time = (GLfloat)(c->var_values[VAR_T] == NAN? c->frame_idx * 330: c->var_values[VAR_T] * 1000);
         GLfloat dropSize = (GLfloat)c->dropSize;
@@ -1181,19 +1186,33 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
         glUniform1iv(glGetUniformLocation(c->program, "isColor"), 1, &isColor);
     } else if (c->shader == SHADER_TYPE_ADJUST) {
 		av_log(ctx, AV_LOG_VERBOSE, "filter_frame adjust\n");
-
-        glUniform1fv(glGetUniformLocation(c->program, "power"), 1, &(c->power));
-        glUniform1fv(glGetUniformLocation(c->program, "r"), 1, &(c->adjust_r));
-        glUniform1fv(glGetUniformLocation(c->program, "g"), 1, &(c->adjust_g));
-        glUniform1fv(glGetUniformLocation(c->program, "b"), 1, &(c->adjust_b));
-        glUniform1fv(glGetUniformLocation(c->program, "brightness"), 1, &(c->brightness));
-        glUniform1fv(glGetUniformLocation(c->program, "contrast"),	 1, &(c->contrast));
-        glUniform1fv(glGetUniformLocation(c->program, "saturation"), 1, &(c->saturation));
+		if (c->adjust_r == 1.0 &&
+            c->adjust_g == 1.0 &&
+            c->adjust_b == 1.0 &&
+            c->brightness == 0.5 &&
+            c->saturation == 0.5 &&
+            c->contrast == 0.5){
+            av_log(ctx, AV_LOG_VERBOSE, "filter_frame skip render because all values are default\n");
+            skipRender = 1;
+        } else {
+            glUniform1fv(glGetUniformLocation(c->program, "power"), 1, &(c->power));
+            glUniform1fv(glGetUniformLocation(c->program, "r"), 1, &(c->adjust_r));
+            glUniform1fv(glGetUniformLocation(c->program, "g"), 1, &(c->adjust_g));
+            glUniform1fv(glGetUniformLocation(c->program, "b"), 1, &(c->adjust_b));
+            glUniform1fv(glGetUniformLocation(c->program, "brightness"), 1, &(c->brightness));
+            glUniform1fv(glGetUniformLocation(c->program, "contrast"),	 1, &(c->contrast));
+            glUniform1fv(glGetUniformLocation(c->program, "saturation"), 1, &(c->saturation));
+		}
 	}
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-    glReadPixels(0, 0, outlink->w, outlink->h, PIXEL_FORMAT, GL_UNSIGNED_BYTE, (GLvoid *)out->data[0]);
+    if (skipRender == 0) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, in->data[0]);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glReadPixels(0, 0, outlink->w, outlink->h, PIXEL_FORMAT, GL_UNSIGNED_BYTE, (GLvoid *) out->data[0]);
+        av_frame_free(&in);
+    } else {
+        out = in;
+    }
 
-    av_frame_free(&in);
     c->frame_idx++;
     av_log(ctx, AV_LOG_VERBOSE, "filter_frame end\n");
     return ff_filter_frame(outlink, out);
