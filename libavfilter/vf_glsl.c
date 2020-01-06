@@ -1182,6 +1182,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
     } else if (c->shader == SHADER_TYPE_ADJUST) {
 		av_log(ctx, AV_LOG_VERBOSE, "filter_frame adjust\n");
 
+        glUniform1fv(glGetUniformLocation(c->program, "power"), 1, &(c->power));
         glUniform1fv(glGetUniformLocation(c->program, "r"), 1, &(c->adjust_r));
         glUniform1fv(glGetUniformLocation(c->program, "g"), 1, &(c->adjust_g));
         glUniform1fv(glGetUniformLocation(c->program, "b"), 1, &(c->adjust_b));
