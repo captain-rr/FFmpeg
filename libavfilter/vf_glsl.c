@@ -719,11 +719,11 @@ static void setup_uniforms(AVFilterLink *fromLink)
 		glUniform1i(glGetUniformLocation(c->program, "isColor"), 0);
 	} if (c->shader == SHADER_TYPE_ADJUST) {
 		glUniform1f(glGetUniformLocation(c->program, "r"), 0.0f);
-		glUniform1i(glGetUniformLocation(c->program, "g"), 0.0f);
+        glUniform1f(glGetUniformLocation(c->program, "g"), 0.0f);
 		glUniform1f(glGetUniformLocation(c->program, "b"), 0.0f);
-		glUniform1i(glGetUniformLocation(c->program, "brightness"), 0.0f);
+        glUniform1f(glGetUniformLocation(c->program, "brightness"), 0.0f);
 		glUniform1f(glGetUniformLocation(c->program, "contrast"), 0.0f);
-		glUniform1i(glGetUniformLocation(c->program, "saturation"), 0.0f);
+        glUniform1f(glGetUniformLocation(c->program, "saturation"), 0.0f);
 	}
 	//else if (c->shader == SHADER_TYPE_TRANSITION) {
 
@@ -1182,12 +1182,12 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
     } else if (c->shader == SHADER_TYPE_ADJUST) {
 		av_log(ctx, AV_LOG_VERBOSE, "filter_frame adjust\n");
 
-		glUniform1fv(glGetUniformLocation(c->program, "r"), 1, &(c->adjust_r));
-		glUniform1fv(glGetUniformLocation(c->program, "g"), 1, &(c->adjust_g));
-		glUniform1iv(glGetUniformLocation(c->program, "b"), 1, &(c->adjust_b));
-		glUniform1fv(glGetUniformLocation(c->program, "brightness"), 1, &(c->brightness));
-		glUniform1fv(glGetUniformLocation(c->program, "contrast"),	 1, &(c->contrast));
-		glUniform1iv(glGetUniformLocation(c->program, "saturation"), 1, &(c->saturation));
+        glUniform1fv(glGetUniformLocation(c->program, "r"), 1, &(c->adjust_r));
+        glUniform1fv(glGetUniformLocation(c->program, "g"), 1, &(c->adjust_g));
+        glUniform1fv(glGetUniformLocation(c->program, "b"), 1, &(c->adjust_b));
+        glUniform1fv(glGetUniformLocation(c->program, "brightness"), 1, &(c->brightness));
+        glUniform1fv(glGetUniformLocation(c->program, "contrast"),	 1, &(c->contrast));
+        glUniform1fv(glGetUniformLocation(c->program, "saturation"), 1, &(c->saturation));
 	}
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glReadPixels(0, 0, outlink->w, outlink->h, PIXEL_FORMAT, GL_UNSIGNED_BYTE, (GLvoid *)out->data[0]);
