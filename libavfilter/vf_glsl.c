@@ -186,7 +186,7 @@ static const GLchar *f_transition_shader_template =
 "  gl_FragColor = transition(texCoord);\n"
 "}\n";
 
-static const GLChar *f_old_movie_shader_source =
+static const GLchar *f_old_movie_shader_source =
     "varying vec2 texCoord;\n"
     "uniform sampler2D tex;\n"
 
