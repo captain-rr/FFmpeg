@@ -137,7 +137,8 @@ enum ShaderTypes {
 	SHADER_TYPE_MATRIX,
 	SHADER_TYPE_SHOCKWAVE,
 	SHADER_TYPE_VINTAGE,
-	SHADER_TYPE_ADJUST,
+    SHADER_TYPE_ADJUST,
+    SHADER_TYPE_OLD_MOVIE,
 	SHADER_TYPE_TRANSITION,
 	SHADER_TYPE_NB,
 };
@@ -184,6 +185,107 @@ static const GLchar *f_transition_shader_template =
 "void main() {\n"
 "  gl_FragColor = transition(texCoord);\n"
 "}\n";
+
+static const GLChar *f_old_movie_shader_source =
+    "varying vec2 texCoord;\n"
+    "uniform sampler2D tex;\n"
+
+    "const vec2 dimensions = vec2(1280, 720);\n"
+
+    "const float noise = 0.3;\n"
+    "const float noiseSize = 1.0;\n"
+    "const float scratch = 0.5;\n"
+    "const float scratchDensity = 0.3;\n"
+    "const float scratchWidth = 1.0;\n"
+    "const float vignettingAlpha = 1.0;\n"
+    "const float vignettingBlur = 0.3;\n"
+
+    "uniform float power;\n"
+    "uniform float sepia;\n"
+    "uniform float vignetting;\n"
+
+    "const float SQRT_2 = 1.414213;\n"
+    "const vec3 SEPIA_RGB = vec3(112.0 / 255.0, 66.0 / 255.0, 20.0 / 255.0);\n"
+
+    "float rand(vec2 co) {\n"
+    "    return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);\n"
+    "}\n"
+
+    "vec3 Overlay(vec3 src, vec3 dst)\n"
+    "{\n"
+    "    // if (dst <= 0.5) then: 2 * src * dst\n"
+    "    // if (dst > 0.5) then: 1 - 2 * (1 - dst) * (1 - src)\n"
+    "    return vec3((dst.x <= 0.5) ? (2.0 * src.x * dst.x) : (1.0 - 2.0 * (1.0 - dst.x) * (1.0 - src.x)),\n"
+    "                (dst.y <= 0.5) ? (2.0 * src.y * dst.y) : (1.0 - 2.0 * (1.0 - dst.y) * (1.0 - src.y)),\n"
+    "                (dst.z <= 0.5) ? (2.0 * src.z * dst.z) : (1.0 - 2.0 * (1.0 - dst.z) * (1.0 - src.z)));\n"
+    "}\n"
+
+    "void main()\n"
+    "{\n"
+    "    gl_FragColor = texture2D(tex, texCoord);\n"
+    "    vec3 color = gl_FragColor.rgb;\n"
+    "    float seed = power;\n"
+    "    vec2 coord = texCoord;\n"
+
+    "    if (sepia > 0.0)\n"
+    "    {\n"
+    "        float gray = (color.x + color.y + color.z) / 3.0;\n"
+    "        vec3 grayscale = vec3(gray);\n"
+    "        color = Overlay(SEPIA_RGB, grayscale);\n"
+    "        color = grayscale + sepia * (color - grayscale);\n"
+    "    }\n"
+
+    "    if (vignetting > 0.0)\n"
+    "    {\n"
+    "        float outter = SQRT_2 - vignetting * SQRT_2;\n"
+    "        vec2 dir = vec2(vec2(0.5, 0.5) - coord);\n"
+    "        dir.y *= dimensions.y / dimensions.x;\n"
+    "        float darker = clamp((outter - length(dir) * SQRT_2) / ( 0.00001 + vignettingBlur * SQRT_2), 0.0, 1.0);\n"
+    "        color.rgb *= darker + (1.0 - darker) * (1.0 - vignettingAlpha);\n"
+    "    }\n"
+
+    "    if (scratchDensity > seed && scratch != 0.0)\n"
+    "    {\n"
+    "        float phase = seed * 256.0;\n"
+    "        float s = mod(floor(phase), 2.0);\n"
+    "        float dist = 1.0 / scratchDensity;\n"
+    "        float d = distance(coord, vec2(seed * dist, abs(s - seed * dist)));\n"
+    "        if (d < seed * 0.6 + 0.4)\n"
+    "        {\n"
+    "            highp float period = scratchDensity * 10.0;\n"
+
+    "            float xx = coord.x * period + phase;\n"
+    "            float aa = abs(mod(xx, 0.5) * 4.0);\n"
+    "            float bb = mod(floor(xx / 0.5), 2.0);\n"
+    "            float yy = (1.0 - bb) * aa + bb * (2.0 - aa);\n"
+
+    "            float kk = 2.0 * period;\n"
+    "            float dw = scratchWidth / dimensions.x * (0.75 + seed);\n"
+    "            float dh = dw * kk;\n"
+    "            float tine = (yy - (2.0 - dh));\n"
+
+    "            if (tine > 0.0) {\n"
+    "                float _sign = sign(scratch);\n"
+    "                tine = s * tine / period + scratch + 0.1;\n"
+    "                tine = clamp(tine + 1.0, 0.5 + _sign * 0.5, 1.5 + _sign * 0.5);\n"
+    "                color.rgb *= tine;\n"
+    "            }\n"
+    "        }\n"
+    "    }\n"
+
+    "    if (noise > 0.0 && noiseSize > 0.0)\n"
+    "    {\n"
+    "        vec2 pixelCoord = texCoord.xy * dimensions.xy;\n"
+    "        pixelCoord.x = floor(pixelCoord.x / noiseSize);\n"
+    "        pixelCoord.y = floor(pixelCoord.y / noiseSize);\n"
+    "        // vec2 d = pixelCoord * noiseSize * vec2(1024.0 + seed * 512.0, 1024.0 - seed * 512.0);\n"
+    "        // float _noise = snoise(d) * 0.5;\n"
+    "        float _noise = rand(pixelCoord * noiseSize * seed) - 0.5;\n"
+    "        color += _noise * noise;\n"
+    "    }\n"
+
+    "    gl_FragColor.rgb = color;\n"
+    "}";
 
 // Thanks to luluco250 - https://www.shadertoy.com/view/4t2fRz
 static const GLchar *f_vintage_shader_source =
@@ -251,7 +353,6 @@ static const GLchar *f_vintage_shader_source =
 static const GLchar *f_shockwave_shader_source =
 "#define ZERO vec2(0.0,0.0)\n"
 "uniform float power;\n"
-"uniform float u_time;\n"
 
 "varying vec2 texCoord;\n"
 "uniform sampler2D tex;\n"
@@ -700,34 +801,34 @@ static void setup_tex(AVFilterLink *inlink) {
 	}
 }
 
-static void setup_uniforms(AVFilterLink *fromLink)
-{
-	AVFilterContext     *ctx = fromLink->dst;
-	GLSLContext *c = ctx->priv;
+static void setup_uniforms(AVFilterLink *fromLink) {
+    AVFilterContext *ctx = fromLink->dst;
+    GLSLContext *c = ctx->priv;
 
-	glUniform1f(glGetUniformLocation(c->program, "power"), 0.0f);
+    glUniform1f(glGetUniformLocation(c->program, "power"), 0.0f);
 
-	if (c->shader == SHADER_TYPE_MATRIX) {
-		glUniform1f(glGetUniformLocation(c->program, "time"), 0.0f);
-		glUniform1f(glGetUniformLocation(c->program, "dropSize"), 0.0f);
-	}
-	else if (c->shader == SHADER_TYPE_SHOCKWAVE) {
-		glUniform1f(glGetUniformLocation(c->program, "time"), 0.0f);
-	}
-	else if (c->shader == SHADER_TYPE_VINTAGE) {
-		glUniform1f(glGetUniformLocation(c->program, "time"), 0.0f);
-		glUniform1i(glGetUniformLocation(c->program, "isColor"), 0);
-	} if (c->shader == SHADER_TYPE_ADJUST) {
-		glUniform1f(glGetUniformLocation(c->program, "r"), 0.0f);
+    if (c->shader == SHADER_TYPE_MATRIX) {
+        glUniform1f(glGetUniformLocation(c->program, "time"), 0.0f);
+        glUniform1f(glGetUniformLocation(c->program, "dropSize"), 0.0f);
+    } else if (c->shader == SHADER_TYPE_OLD_MOVIE) {
+        glUniform1f(glGetUniformLocation(c->program, "sepia"), 0.0f);
+        glUniform1f(glGetUniformLocation(c->program, "vignetting"), 0.0f);
+    } else if (c->shader == SHADER_TYPE_SHOCKWAVE) {
+        glUniform1f(glGetUniformLocation(c->program, "time"), 0.0f);
+    } else if (c->shader == SHADER_TYPE_VINTAGE) {
+        glUniform1f(glGetUniformLocation(c->program, "time"), 0.0f);
+        glUniform1i(glGetUniformLocation(c->program, "isColor"), 0);
+    } else if (c->shader == SHADER_TYPE_ADJUST) {
+        glUniform1f(glGetUniformLocation(c->program, "r"), 0.0f);
         glUniform1f(glGetUniformLocation(c->program, "g"), 0.0f);
-		glUniform1f(glGetUniformLocation(c->program, "b"), 0.0f);
+        glUniform1f(glGetUniformLocation(c->program, "b"), 0.0f);
         glUniform1f(glGetUniformLocation(c->program, "brightness"), 0.0f);
-		glUniform1f(glGetUniformLocation(c->program, "contrast"), 0.0f);
+        glUniform1f(glGetUniformLocation(c->program, "contrast"), 0.0f);
         glUniform1f(glGetUniformLocation(c->program, "saturation"), 0.0f);
-	}
-	//else if (c->shader == SHADER_TYPE_TRANSITION) {
+    }
+    //else if (c->shader == SHADER_TYPE_TRANSITION) {
 
-	//}
+    //}
 }
 
 static int build_program(AVFilterContext *ctx) {
@@ -767,7 +868,10 @@ static int build_program(AVFilterContext *ctx) {
 		else if (c->shader == SHADER_TYPE_SHOCKWAVE) {
 			f_shader = build_shader(ctx, f_shockwave_shader_source, GL_FRAGMENT_SHADER);
 		}
-		else if (c->shader == SHADER_TYPE_VINTAGE) {
+        else if (c->shader == SHADER_TYPE_OLD_MOVIE) {
+            f_shader = build_shader(ctx, f_old_movie_shader_source, GL_FRAGMENT_SHADER);
+        }
+        else if (c->shader == SHADER_TYPE_VINTAGE) {
 			f_shader = build_shader(ctx, f_vintage_shader_source, GL_FRAGMENT_SHADER);
 		}
 		else if (c->shader == SHADER_TYPE_ADJUST) {
@@ -1152,6 +1256,11 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 		  av_log(ctx, AV_LOG_VERBOSE, "rgb:%f,%f,%f bcs: %f,%f,%f \n",
 			  c->adjust_r, c->adjust_g, c->adjust_b,
 			  c->brightness, c->contrast, c->saturation);
+	  } else if (c->shader == SHADER_TYPE_OLD_MOVIE) {
+          eval_secondary_expr(ctx, c->contrast_pexpr, &(c->contrast), "contrast");
+          eval_secondary_expr(ctx, c->saturation_pexpr, &(c->saturation), "saturation");
+
+          av_log(ctx, AV_LOG_VERBOSE, "sepia:%f vignetting: %f \n", c->contrast, c->saturation);
 	  }
     }
     if (c->power == 0.0){
@@ -1184,6 +1293,12 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 		glUniform1fv(glGetUniformLocation(c->program, "power"), 1, &c->power);
 		glUniform1fv(glGetUniformLocation(c->program, "time"), 1, &time);
         glUniform1iv(glGetUniformLocation(c->program, "isColor"), 1, &isColor);
+    } else if (c->shader == SHADER_TYPE_OLD_MOVIE){
+        av_log(ctx, AV_LOG_VERBOSE, "filter_frame old movie\n");
+
+        glUniform1fv(glGetUniformLocation(c->program, "power"), 1, &(c->power));
+        glUniform1fv(glGetUniformLocation(c->program, "sepia"), 1, &(c->contrast));
+        glUniform1fv(glGetUniformLocation(c->program, "vignetting"), 1, &(c->saturation));
     } else if (c->shader == SHADER_TYPE_ADJUST) {
 		av_log(ctx, AV_LOG_VERBOSE, "filter_frame adjust\n");
 		if (c->adjust_r == 1.0 &&
@@ -1281,6 +1396,7 @@ static const AVOption glsl_options[] = {
 			 { "shockwave", "set shockwave like effect", 0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_SHOCKWAVE},.flags = FLAGS,.unit = "shader" },
 			 { "vintage", "set vintage like effect", 0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_VINTAGE},.flags = FLAGS,.unit = "shader" },
 			 { "adjust", "set vintage like effect", 0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_ADJUST},.flags = FLAGS,.unit = "shader" },
+             { "old_movie", "set old-movie like effect", 0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_OLD_MOVIE},.flags = FLAGS,.unit = "shader" },
 			 { "none", "passthrough", 0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_PASSTHROUGH},.flags = FLAGS,.unit = "shader" },
 	{ "vs_textfile",    "set a text file for vertex shader",        OFFSET(vs_textfile),           AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX, FLAGS},
     { "fs_textfile",    "set a text file for fragment shader",      OFFSET(fs_textfile),           AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX, FLAGS},
@@ -1292,8 +1408,8 @@ static const AVOption glsl_options[] = {
 	{ "g", "set the g expression", OFFSET(g_expr), AV_OPT_TYPE_STRING, {.str = "1"}, CHAR_MIN, CHAR_MAX, FLAGS },
 	{ "b", "set the b expression", OFFSET(b_expr), AV_OPT_TYPE_STRING, {.str = "1"}, CHAR_MIN, CHAR_MAX, FLAGS },
 	{ "brightness", "set the brightness expression", OFFSET(brightness_expr), AV_OPT_TYPE_STRING, {.str = "0.5"}, CHAR_MIN, CHAR_MAX, FLAGS },
-	{ "contrast", "set the contrast expression", OFFSET(contrast_expr), AV_OPT_TYPE_STRING, {.str = "0.5"}, CHAR_MIN, CHAR_MAX, FLAGS },
-	{ "saturation", "set the saturation expression", OFFSET(saturation_expr), AV_OPT_TYPE_STRING, {.str = "0.5"}, CHAR_MIN, CHAR_MAX, FLAGS },
+	{ "contrast", "set the contrast (sepia in old-movie) expression", OFFSET(contrast_expr), AV_OPT_TYPE_STRING, {.str = "0.5"}, CHAR_MIN, CHAR_MAX, FLAGS },
+	{ "saturation", "set the saturation (vignetting in old-movie) expression", OFFSET(saturation_expr), AV_OPT_TYPE_STRING, {.str = "0.5"}, CHAR_MIN, CHAR_MAX, FLAGS },
 	{ "is_color", "relevant to vintage, specify color mode", OFFSET(is_color), AV_OPT_TYPE_INT, {.i64 = IS_COLOR_MODE_TRUE}, 0, IS_COLOR_MODE_NB-1, FLAGS, "is_color" },
              { "true",  "color mode",    0, AV_OPT_TYPE_CONST, {.i64=IS_COLOR_MODE_TRUE},  .flags = FLAGS, .unit = "is_color" },
              { "false", "no color mode", 0, AV_OPT_TYPE_CONST, {.i64=IS_COLOR_MODE_FALSE}, .flags = FLAGS, .unit = "is_color" },
