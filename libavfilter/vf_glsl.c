@@ -138,7 +138,7 @@ enum ShaderTypes {
 	SHADER_TYPE_SHOCKWAVE,
 	SHADER_TYPE_VINTAGE,
     SHADER_TYPE_ADJUST,
-    SHADER_TYPE_OLD_MOVIE,
+    SHADER_TYPE_OLD_FILM,
 	SHADER_TYPE_TRANSITION,
 	SHADER_TYPE_NB,
 };
@@ -186,7 +186,7 @@ static const GLchar *f_transition_shader_template =
 "  gl_FragColor = transition(texCoord);\n"
 "}\n";
 
-static const GLchar *f_old_movie_shader_source =
+static const GLchar *f_old_film_shader_source =
     "varying vec2 texCoord;\n"
     "uniform sampler2D tex;\n"
 
@@ -199,11 +199,11 @@ static const GLchar *f_old_movie_shader_source =
     "const float scratchWidth = 1.0;\n"
     "const float vignettingAlpha = 1.0;\n"
     "const float vignettingBlur = 0.3;\n"
+	"const float sepia = 0.5;\n"
+	"const float vignetting = 0.4;\n"
 
     "uniform float power;\n"
-    "uniform float sepia;\n"
-    "uniform float vignetting;\n"
-
+    
     "const float SQRT_2 = 1.414213;\n"
     "const vec3 SEPIA_RGB = vec3(112.0 / 255.0, 66.0 / 255.0, 20.0 / 255.0);\n"
 
@@ -810,9 +810,6 @@ static void setup_uniforms(AVFilterLink *fromLink) {
     if (c->shader == SHADER_TYPE_MATRIX) {
         glUniform1f(glGetUniformLocation(c->program, "time"), 0.0f);
         glUniform1f(glGetUniformLocation(c->program, "dropSize"), 0.0f);
-    } else if (c->shader == SHADER_TYPE_OLD_MOVIE) {
-        glUniform1f(glGetUniformLocation(c->program, "sepia"), 0.0f);
-        glUniform1f(glGetUniformLocation(c->program, "vignetting"), 0.0f);
     } else if (c->shader == SHADER_TYPE_SHOCKWAVE) {
         glUniform1f(glGetUniformLocation(c->program, "time"), 0.0f);
     } else if (c->shader == SHADER_TYPE_VINTAGE) {
@@ -868,8 +865,8 @@ static int build_program(AVFilterContext *ctx) {
 		else if (c->shader == SHADER_TYPE_SHOCKWAVE) {
 			f_shader = build_shader(ctx, f_shockwave_shader_source, GL_FRAGMENT_SHADER);
 		}
-        else if (c->shader == SHADER_TYPE_OLD_MOVIE) {
-            f_shader = build_shader(ctx, f_old_movie_shader_source, GL_FRAGMENT_SHADER);
+        else if (c->shader == SHADER_TYPE_OLD_FILM) {
+            f_shader = build_shader(ctx, f_old_film_shader_source, GL_FRAGMENT_SHADER);
         }
         else if (c->shader == SHADER_TYPE_VINTAGE) {
 			f_shader = build_shader(ctx, f_vintage_shader_source, GL_FRAGMENT_SHADER);
@@ -1132,8 +1129,7 @@ static int config_input_props(AVFilterLink *inlink) {
 				(ret = set_expr(&c->b_pexpr, c->b_expr, "b", ctx)) < 0 ||
 				(ret = set_expr(&c->power_pexpr, c->power_expr, "power", ctx)) < 0)
 				return ret;
-		}
-		else {
+		} else {
 			if ((ret = set_expr(&c->power_pexpr, c->power_expr, "power", ctx)) < 0)
 				return ret;
 		}
@@ -1256,11 +1252,6 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 		  av_log(ctx, AV_LOG_VERBOSE, "rgb:%f,%f,%f bcs: %f,%f,%f \n",
 			  c->adjust_r, c->adjust_g, c->adjust_b,
 			  c->brightness, c->contrast, c->saturation);
-	  } else if (c->shader == SHADER_TYPE_OLD_MOVIE) {
-          eval_secondary_expr(ctx, c->contrast_pexpr, &(c->contrast), "contrast");
-          eval_secondary_expr(ctx, c->saturation_pexpr, &(c->saturation), "saturation");
-
-          av_log(ctx, AV_LOG_VERBOSE, "sepia:%f vignetting: %f \n", c->contrast, c->saturation);
 	  }
     }
     if (c->power == 0.0){
@@ -1293,12 +1284,10 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 		glUniform1fv(glGetUniformLocation(c->program, "power"), 1, &c->power);
 		glUniform1fv(glGetUniformLocation(c->program, "time"), 1, &time);
         glUniform1iv(glGetUniformLocation(c->program, "isColor"), 1, &isColor);
-    } else if (c->shader == SHADER_TYPE_OLD_MOVIE){
-        av_log(ctx, AV_LOG_VERBOSE, "filter_frame old movie\n");
+    } else if (c->shader == SHADER_TYPE_OLD_FILM){
+        av_log(ctx, AV_LOG_VERBOSE, "filter_frame old film\n");
 
         glUniform1fv(glGetUniformLocation(c->program, "power"), 1, &(c->power));
-        glUniform1fv(glGetUniformLocation(c->program, "sepia"), 1, &(c->contrast));
-        glUniform1fv(glGetUniformLocation(c->program, "vignetting"), 1, &(c->saturation));
     } else if (c->shader == SHADER_TYPE_ADJUST) {
 		av_log(ctx, AV_LOG_VERBOSE, "filter_frame adjust\n");
 		if (c->adjust_r == 1.0 &&
@@ -1396,7 +1385,7 @@ static const AVOption glsl_options[] = {
 			 { "shockwave", "set shockwave like effect", 0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_SHOCKWAVE},.flags = FLAGS,.unit = "shader" },
 			 { "vintage", "set vintage like effect", 0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_VINTAGE},.flags = FLAGS,.unit = "shader" },
 			 { "adjust", "set vintage like effect", 0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_ADJUST},.flags = FLAGS,.unit = "shader" },
-             { "old_movie", "set old-movie like effect", 0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_OLD_MOVIE},.flags = FLAGS,.unit = "shader" },
+             { "old_film", "set old-film like effect", 0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_OLD_FILM},.flags = FLAGS,.unit = "shader" },
 			 { "none", "passthrough", 0, AV_OPT_TYPE_CONST, {.i64 = SHADER_TYPE_PASSTHROUGH},.flags = FLAGS,.unit = "shader" },
 	{ "vs_textfile",    "set a text file for vertex shader",        OFFSET(vs_textfile),           AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX, FLAGS},
     { "fs_textfile",    "set a text file for fragment shader",      OFFSET(fs_textfile),           AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX, FLAGS},
@@ -1408,8 +1397,8 @@ static const AVOption glsl_options[] = {
 	{ "g", "set the g expression", OFFSET(g_expr), AV_OPT_TYPE_STRING, {.str = "1"}, CHAR_MIN, CHAR_MAX, FLAGS },
 	{ "b", "set the b expression", OFFSET(b_expr), AV_OPT_TYPE_STRING, {.str = "1"}, CHAR_MIN, CHAR_MAX, FLAGS },
 	{ "brightness", "set the brightness expression", OFFSET(brightness_expr), AV_OPT_TYPE_STRING, {.str = "0.5"}, CHAR_MIN, CHAR_MAX, FLAGS },
-	{ "contrast", "set the contrast (sepia in old-movie) expression", OFFSET(contrast_expr), AV_OPT_TYPE_STRING, {.str = "0.5"}, CHAR_MIN, CHAR_MAX, FLAGS },
-	{ "saturation", "set the saturation (vignetting in old-movie) expression", OFFSET(saturation_expr), AV_OPT_TYPE_STRING, {.str = "0.5"}, CHAR_MIN, CHAR_MAX, FLAGS },
+	{ "contrast", "set the contrast expression", OFFSET(contrast_expr), AV_OPT_TYPE_STRING, {.str = "0.5"}, CHAR_MIN, CHAR_MAX, FLAGS },
+	{ "saturation", "set the saturation expression", OFFSET(saturation_expr), AV_OPT_TYPE_STRING, {.str = "0.5"}, CHAR_MIN, CHAR_MAX, FLAGS },
 	{ "is_color", "relevant to vintage, specify color mode", OFFSET(is_color), AV_OPT_TYPE_INT, {.i64 = IS_COLOR_MODE_TRUE}, 0, IS_COLOR_MODE_NB-1, FLAGS, "is_color" },
              { "true",  "color mode",    0, AV_OPT_TYPE_CONST, {.i64=IS_COLOR_MODE_TRUE},  .flags = FLAGS, .unit = "is_color" },
              { "false", "no color mode", 0, AV_OPT_TYPE_CONST, {.i64=IS_COLOR_MODE_FALSE}, .flags = FLAGS, .unit = "is_color" },
