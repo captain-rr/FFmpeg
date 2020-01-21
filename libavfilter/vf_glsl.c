@@ -1225,6 +1225,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
         return AVERROR(ENOMEM);
     }
     av_frame_copy_props(out, in);
+	glUseProgram(c->program);
 
     if (c->eval_mode == EVAL_MODE_FRAME) {
       int64_t pos = in->pkt_pos;
