@@ -550,9 +550,9 @@ static const GLchar *f_adjust_shader_source =
 "  vec3 sat = applyHSBEffect(diffuseColor,vec4(0, brightness,contrast,saturation)).rgb;\n"
 "  vec3 gamma = vec3(r,g,b);\n"
 
-"  diffuseColor = vec4(sat.r,sat.g,sat.b,1.0);\n"
+"  diffuseColor.rgb = clamp(vec3(sat.r,sat.g,sat.b),vec3(0.0),vec3(1.0));\n"
 "  diffuseColor.rgb = pow(diffuseColor.rgb, (1.0 / gamma));\n"
-"  gl_FragColor = mix(originalColor,diffuseColor,power);\n"
+"  gl_FragColor.rgb = mix(gl_FragColor.rgb,diffuseColor.rgb,power);\n"
 "}\n";
 
 // default to a basic fade effect
