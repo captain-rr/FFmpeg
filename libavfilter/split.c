@@ -118,8 +118,9 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
 
 static int filter_frame_timesplit(AVFilterLink *inlink, AVFrame *frame)
 {
-    AVFilterContext *ctx = inlink->dst;
-    int i, ret = AVERROR_EOF;
+    AVFilterContext *ctx  = inlink->dst;
+    SplitContext       *s = ctx->priv;
+    int i;
 
     /* drop everything if EOF has already been returned */
     if (s->eof) {
@@ -137,7 +138,7 @@ static int filter_frame_timesplit(AVFilterLink *inlink, AVFrame *frame)
 
 
     if (ff_outlink_get_status(ctx->outputs[i]))
-        continue;
+        return AVERROR_EOF;
 
     return ff_filter_frame(ctx->outputs[i], frame);
 }
