@@ -23,6 +23,7 @@
  * audio and video splitter
  */
 
+#include <stdint.h>
 #include <stdio.h>
 
 #include "libavutil/attributes.h"
@@ -41,6 +42,8 @@
 typedef struct SplitContext {
     const AVClass *class;
     int nb_outputs;
+    int64_t time;
+    int64_t time_pts;
 } SplitContext;
 
 static av_cold int split_init(AVFilterContext *ctx)
@@ -73,6 +76,22 @@ static av_cold void split_uninit(AVFilterContext *ctx)
         av_freep(&ctx->output_pads[i].name);
 }
 
+static int config_input(AVFilterLink *inlink)
+{
+    AVFilterContext *ctx = inlink->dst;
+    SplitContext       *s = ctx->priv;
+    AVRational tb = (inlink->type == AVMEDIA_TYPE_VIDEO) ?
+                    inlink->time_base : (AVRational){ 1, inlink->sample_rate };
+
+    if (s->time != INT64_MAX) {
+        int64_t time_pts = av_rescale_q(s->time, AV_TIME_BASE_Q, tb);
+        if (s->time_pts == AV_NOPTS_VALUE || time_pts < s->time_pts)
+            s->time_pts = time_pts;
+    }
+
+    return 0;
+}
+
 static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
 {
     AVFilterContext *ctx = inlink->dst;
@@ -97,6 +116,32 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
     return ret;
 }
 
+static int filter_frame_timesplit(AVFilterLink *inlink, AVFrame *frame)
+{
+    AVFilterContext *ctx = inlink->dst;
+    int i, ret = AVERROR_EOF;
+
+    /* drop everything if EOF has already been returned */
+    if (s->eof) {
+        av_frame_free(&frame);
+        return 0;
+    }
+
+    if (frame->pts != AV_NOPTS_VALUE &&
+        frame->pts >= s->time_pts) {
+        i = 1;
+    }
+    else {
+        i = 0;
+    }
+
+
+    if (ff_outlink_get_status(ctx->outputs[i]))
+        continue;
+
+    return ff_filter_frame(ctx->outputs[i], frame);
+}
+
 #define OFFSET(x) offsetof(SplitContext, x)
 #define FLAGS (AV_OPT_FLAG_AUDIO_PARAM | AV_OPT_FLAG_VIDEO_PARAM | AV_OPT_FLAG_FILTERING_PARAM)
 static const AVOption options[] = {
@@ -104,8 +149,17 @@ static const AVOption options[] = {
     { NULL }
 };
 
+static const AVOption time_options[] = {
+    { "time",    "timestamp of the first frame that should be passed to the second output", OFFSET(time),  AV_OPT_TYPE_DURATION, { .i64 = INT64_MAX },    INT64_MIN, INT64_MAX, FLAGS }, \
+    { "outputs", "set number of outputs (do not change)", OFFSET(nb_outputs), AV_OPT_TYPE_INT, { .i64 = 2 }, 1, INT_MAX, FLAGS },
+    { NULL }
+};
+
 #define split_options options
 AVFILTER_DEFINE_CLASS(split);
+
+#define timesplit_options time_options
+AVFILTER_DEFINE_CLASS(timesplit);
 
 #define asplit_options options
 AVFILTER_DEFINE_CLASS(asplit);
@@ -129,6 +183,28 @@ AVFilter ff_vf_split = {
     .inputs      = avfilter_vf_split_inputs,
     .outputs     = NULL,
     .flags       = AVFILTER_FLAG_DYNAMIC_OUTPUTS,
+};
+
+static const AVFilterPad avfilter_vf_timesplit_inputs[] = {
+        {
+                .name         = "default",
+                .type         = AVMEDIA_TYPE_VIDEO,
+                .filter_frame = filter_frame_timesplit,
+                .config_props = config_input,
+        },
+        { NULL }
+};
+
+AVFilter ff_vf_timesplit = {
+        .name        = "timesplit",
+        .description = NULL_IF_CONFIG_SMALL("Pass frame to either output based to time"),
+        .priv_size   = sizeof(SplitContext),
+        .priv_class  = &timesplit_class,
+        .init        = split_init,
+        .uninit      = split_uninit,
+        .inputs      = avfilter_vf_timesplit_inputs,
+        .outputs     = NULL,
+        .flags       = AVFILTER_FLAG_DYNAMIC_OUTPUTS,
 };
 
 static const AVFilterPad avfilter_af_asplit_inputs[] = {
