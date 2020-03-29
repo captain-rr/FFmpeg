@@ -122,12 +122,6 @@ static int filter_frame_timesplit(AVFilterLink *inlink, AVFrame *frame)
     SplitContext       *s = ctx->priv;
     int i;
 
-    /* drop everything if EOF has already been returned */
-    if (s->eof) {
-        av_frame_free(&frame);
-        return 0;
-    }
-
     if (frame->pts != AV_NOPTS_VALUE &&
         frame->pts >= s->time_pts) {
         i = 1;
