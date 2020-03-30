@@ -31,6 +31,7 @@
 #include "libavutil/internal.h"
 #include "libavutil/mem.h"
 #include "libavutil/opt.h"
+#include "libavutil/mathematics.h"
 
 #include "avfilter.h"
 #include "audio.h"
@@ -84,11 +85,15 @@ static int config_input(AVFilterLink *inlink)
     AVRational tb = (inlink->type == AVMEDIA_TYPE_VIDEO) ?
                     inlink->time_base : (AVRational){ 1, inlink->sample_rate };
 
+    av_log(ctx, AV_LOG_DEBUG, "config_input %d \n", s->time);
+
     if (s->time != INT64_MAX) {
         int64_t time_pts = av_rescale_q(s->time, AV_TIME_BASE_Q, tb);
+        av_log(ctx, AV_LOG_DEBUG, "config_input time_pts %d \n", time_pts);
         if (s->time_pts == AV_NOPTS_VALUE || time_pts < s->time_pts)
             s->time_pts = time_pts;
     }
+    av_log(ctx, AV_LOG_DEBUG, "config_input end %d \n", s->time_pts);
 
     return 0;
 }
@@ -133,10 +138,10 @@ static int filter_frame_timesplit(AVFilterLink *inlink, AVFrame *frame)
         i = 1;
         s->eof = 1;
         ff_avfilter_link_set_out_status(ctx->outputs[0], AVERROR_EOF, AV_NOPTS_VALUE);
-        av_log(ctx, AV_LOG_DEBUG, "setting output[0] eof\n");
+        av_log(ctx, AV_LOG_DEBUG, "setting output[0] eof %d %d\n", frame->pts, s->time_pts);
     }
     else {
-        av_log(ctx, AV_LOG_DEBUG, "writing to output[0]\n");
+        av_log(ctx, AV_LOG_DEBUG, "writing to output[0] %d %d\n", frame->pts, s->time_pts);
         i = 0;
     }
 
