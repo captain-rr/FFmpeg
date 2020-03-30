@@ -46,6 +46,7 @@ typedef struct SplitContext {
     int64_t time;
     int64_t time_pts;
     int eof;
+    int64_t next_pts;
 } SplitContext;
 
 static av_cold int split_init(AVFilterContext *ctx)
@@ -145,6 +146,40 @@ static int filter_frame_timesplit(AVFilterLink *inlink, AVFrame *frame)
     return ff_filter_frame(ctx->outputs[i], frame);
 }
 
+static int filter_frame_atimesplit(AVFilterLink *inlink, AVFrame *frame)
+{
+    AVFilterContext *ctx  = inlink->dst;
+    SplitContext       *s = ctx->priv;
+    int64_t pts;
+    int i;
+
+    if (frame->pts != AV_NOPTS_VALUE)
+        pts = av_rescale_q(frame->pts, inlink->time_base,
+                           (AVRational){ 1, inlink->sample_rate });
+    else
+        pts = s->next_pts;
+    s->next_pts = pts + frame->nb_samples;
+
+    if (s->eof){
+        av_log(ctx, AV_LOG_DEBUG, "already in output[0] eof\n");
+        return ff_filter_frame(ctx->outputs[1], frame);
+    }
+
+    if (pts != AV_NOPTS_VALUE &&
+        pts >= s->time_pts) {
+        i = 1;
+        s->eof = 1;
+        ff_avfilter_link_set_out_status(ctx->outputs[0], AVERROR_EOF, AV_NOPTS_VALUE);
+        av_log(ctx, AV_LOG_DEBUG, "setting output[0] eof %d %d %d\n", frame->pts, pts, s->time_pts);
+    }
+    else {
+        av_log(ctx, AV_LOG_DEBUG, "writing to output[0] %d %d %d\n", frame->pts, pts, s->time_pts);
+        i = 0;
+    }
+
+    return ff_filter_frame(ctx->outputs[i], frame);
+}
+
 #define OFFSET(x) offsetof(SplitContext, x)
 #define FLAGS (AV_OPT_FLAG_AUDIO_PARAM | AV_OPT_FLAG_VIDEO_PARAM | AV_OPT_FLAG_FILTERING_PARAM)
 static const AVOption options[] = {
@@ -166,6 +201,9 @@ AVFILTER_DEFINE_CLASS(timesplit);
 
 #define asplit_options options
 AVFILTER_DEFINE_CLASS(asplit);
+
+#define atimesplit_options time_options
+AVFILTER_DEFINE_CLASS(atimesplit);
 
 static const AVFilterPad avfilter_vf_split_inputs[] = {
     {
@@ -206,6 +244,28 @@ AVFilter ff_vf_timesplit = {
         .init        = split_init,
         .uninit      = split_uninit,
         .inputs      = avfilter_vf_timesplit_inputs,
+        .outputs     = NULL,
+        .flags       = AVFILTER_FLAG_DYNAMIC_OUTPUTS,
+};
+
+static const AVFilterPad avfilter_vf_atimesplit_inputs[] = {
+        {
+                .name         = "default",
+                .type         = AVMEDIA_TYPE_AUDIO,
+                .filter_frame = filter_frame_atimesplit,
+                .config_props = config_input,
+        },
+        { NULL }
+};
+
+AVFilter ff_af_atimesplit = {
+        .name        = "atimesplit",
+        .description = NULL_IF_CONFIG_SMALL("Pass frame to either output based to time"),
+        .priv_size   = sizeof(SplitContext),
+        .priv_class  = &atimesplit_class,
+        .init        = split_init,
+        .uninit      = split_uninit,
+        .inputs      = avfilter_vf_atimesplit_inputs,
         .outputs     = NULL,
         .flags       = AVFILTER_FLAG_DYNAMIC_OUTPUTS,
 };
