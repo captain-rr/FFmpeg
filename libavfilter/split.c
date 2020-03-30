@@ -88,10 +88,7 @@ static int config_input(AVFilterLink *inlink)
     av_log(ctx, AV_LOG_DEBUG, "config_input %d \n", s->time);
 
     if (s->time != INT64_MAX) {
-        int64_t time_pts = av_rescale_q(s->time, AV_TIME_BASE_Q, tb);
-        av_log(ctx, AV_LOG_DEBUG, "config_input time_pts %d \n", time_pts);
-        if (s->time_pts == AV_NOPTS_VALUE || time_pts < s->time_pts)
-            s->time_pts = time_pts;
+        s->time_pts = av_rescale_q(s->time, AV_TIME_BASE_Q, tb);;
     }
     av_log(ctx, AV_LOG_DEBUG, "config_input end %d \n", s->time_pts);
 
