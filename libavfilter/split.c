@@ -44,6 +44,7 @@ typedef struct SplitContext {
     int nb_outputs;
     int64_t time;
     int64_t time_pts;
+    int eof;
 } SplitContext;
 
 static av_cold int split_init(AVFilterContext *ctx)
@@ -122,17 +123,22 @@ static int filter_frame_timesplit(AVFilterLink *inlink, AVFrame *frame)
     SplitContext       *s = ctx->priv;
     int i;
 
+    if (s->eof){
+        av_log(ctx, AV_LOG_DEBUG, "already in output[0] eof\n");
+        return ff_filter_frame(ctx->outputs[1], frame);
+    }
+
     if (frame->pts != AV_NOPTS_VALUE &&
         frame->pts >= s->time_pts) {
         i = 1;
+        s->eof = 1;
+        ff_avfilter_link_set_out_status(ctx->outputs[0], AVERROR_EOF, AV_NOPTS_VALUE);
+        av_log(ctx, AV_LOG_DEBUG, "setting output[0] eof\n");
     }
     else {
+        av_log(ctx, AV_LOG_DEBUG, "writing to output[0]\n");
         i = 0;
     }
-
-
-    if (ff_outlink_get_status(ctx->outputs[i]))
-        return AVERROR_EOF;
 
     return ff_filter_frame(ctx->outputs[i], frame);
 }
