@@ -135,7 +135,6 @@ static int filter_frame_timesplit(AVFilterLink *inlink, AVFrame *frame)
         frame->pts >= s->time_pts) {
         i = 1;
         s->eof = 1;
-        ff_avfilter_link_set_out_status(ctx->outputs[0], AVERROR_EOF, AV_NOPTS_VALUE);
         av_log(ctx, AV_LOG_DEBUG, "setting output[0] eof %d %d\n", frame->pts, s->time_pts);
     }
     else {
@@ -169,7 +168,6 @@ static int filter_frame_atimesplit(AVFilterLink *inlink, AVFrame *frame)
         pts >= s->time_pts) {
         i = 1;
         s->eof = 1;
-        ff_avfilter_link_set_out_status(ctx->outputs[0], AVERROR_EOF, AV_NOPTS_VALUE);
         av_log(ctx, AV_LOG_DEBUG, "setting output[0] eof %d %d %d\n", frame->pts, pts, s->time_pts);
     }
     else {
