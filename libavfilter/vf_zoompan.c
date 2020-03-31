@@ -155,7 +155,7 @@ static int output_single_frame(AVFilterContext *ctx, AVFrame *in, double *var_va
 {
     ZPContext *s = ctx->priv;
     AVFilterLink *outlink = ctx->outputs[0];
-    int64_t pts = s->frame_count;
+    int64_t pts = in->pts;
     int k, x, y, w, h, ret = 0;
     uint8_t *input[4];
     int px[4], py[4];
