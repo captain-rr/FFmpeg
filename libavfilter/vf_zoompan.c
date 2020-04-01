@@ -130,8 +130,8 @@ static int config_output(AVFilterLink *outlink)
 
     outlink->w = s->w;
     outlink->h = s->h;
-    outlink->time_base = av_inv_q(s->framerate);
-    outlink->frame_rate = s->framerate;
+    outlink->time_base = ctx->inputs[0]->time_base;
+    outlink->frame_rate = ctx->inputs[0]->frame_rate;
     s->desc = av_pix_fmt_desc_get(outlink->format);
     s->finished = 1;
 
@@ -155,7 +155,6 @@ static int output_single_frame(AVFilterContext *ctx, AVFrame *in, double *var_va
 {
     ZPContext *s = ctx->priv;
     AVFilterLink *outlink = ctx->outputs[0];
-    int64_t pts = in->pts;
     int k, x, y, w, h, ret = 0;
     uint8_t *input[4];
     int px[4], py[4];
@@ -165,7 +164,7 @@ static int output_single_frame(AVFilterContext *ctx, AVFrame *in, double *var_va
     var_values[VAR_PY]    = s->y;
     var_values[VAR_PZOOM] = s->prev_zoom;
     var_values[VAR_PDURATION] = s->prev_nb_frames;
-    var_values[VAR_TIME] = pts * av_q2d(outlink->time_base);
+    var_values[VAR_TIME] = in->pts == AV_NOPTS_VALUE ? NAN : in->pts * av_q2d(inlink->time_base);
     var_values[VAR_FRAME] = i;
     var_values[VAR_ON] = outlink->frame_count_in;
 
@@ -222,7 +221,7 @@ static int output_single_frame(AVFilterContext *ctx, AVFrame *in, double *var_va
 
     sws_scale(s->sws, (const uint8_t *const *)&input, in->linesize, 0, h, out->data, out->linesize);
 
-    out->pts = pts;
+    out->pts = in->pts;
     s->frame_count++;
 
     ret = ff_filter_frame(outlink, out);
