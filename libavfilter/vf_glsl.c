@@ -552,7 +552,7 @@ static const GLchar *f_adjust_shader_source =
 
 "  diffuseColor.rgb = clamp(vec3(sat.r,sat.g,sat.b),vec3(0.0),vec3(1.0));\n"
 "  diffuseColor.rgb = pow(diffuseColor.rgb, (1.0 / gamma));\n"
-"  gl_FragColor.rgb = mix(gl_FragColor.rgb,diffuseColor.rgb,power);\n"
+"  gl_FragColor.rgb = mix(originalColor.rgb,diffuseColor.rgb,power);\n"
 "}\n";
 
 // default to a basic fade effect
