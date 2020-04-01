@@ -1083,7 +1083,7 @@ static int config_input_props(AVFilterLink *inlink) {
 	av_log(ctx, AV_LOG_DEBUG, "config_input_props\n");
 	//glfw
 	glfwWindowHint(GLFW_VISIBLE, 0);
-	av_log(ctx, AV_LOG_DEBUG, "config_input_props 2\n");
+	av_log(ctx, AV_LOG_INFO, "config_input_props 2 %dx%d\n", inlink->w, inlink->h);
 	c->window = glfwCreateWindow(inlink->w, inlink->h, "", NULL, NULL);
 	av_log(ctx, AV_LOG_DEBUG, "config_input_props 3\n");
 	if (!c->window) {
@@ -1314,6 +1314,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, in->data[0]);
         glDrawArrays(GL_TRIANGLES, 0, 6);
         glReadPixels(0, 0, outlink->w, outlink->h, PIXEL_FORMAT, GL_UNSIGNED_BYTE, (GLvoid *) out->data[0]);
+        av_log(ctx, AV_LOG_VERBOSE, "filter_frame render %d%d -> %dx%d\n", inlink->w, inlink->h, outlink->w, outlink->h);
         av_frame_free(&in);
     } else {
         out = in;
