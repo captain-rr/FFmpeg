@@ -1209,7 +1209,6 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 	AVFilterContext *ctx;
 	AVFilterLink    *outlink;
 	GLSLContext *c;
-	AVFrame *out;
 	int skipRender;
     
 	ctx     = inlink->dst;
@@ -1219,13 +1218,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 
     av_log(ctx, AV_LOG_VERBOSE, "filter_frame\n");
 
-    out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
-    if (!out) {
-        av_frame_free(&in);
-        return AVERROR(ENOMEM);
-    }
-    av_frame_copy_props(out, in);
-	glfwMakeContextCurrent(c->window);
+    glfwMakeContextCurrent(c->window);
 	glUseProgram(c->program);
 
     if (c->eval_mode == EVAL_MODE_FRAME) {
@@ -1313,16 +1306,13 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
     if (skipRender == 0) {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, in->data[0]);
         glDrawArrays(GL_TRIANGLES, 0, 6);
-        glReadPixels(0, 0, outlink->w, outlink->h, PIXEL_FORMAT, GL_UNSIGNED_BYTE, (GLvoid *) out->data[0]);
+        glReadPixels(0, 0, outlink->w, outlink->h, PIXEL_FORMAT, GL_UNSIGNED_BYTE, (GLvoid *)in->data[0]);
         av_log(ctx, AV_LOG_VERBOSE, "filter_frame render %d%d -> %dx%d\n", inlink->w, inlink->h, outlink->w, outlink->h);
-        av_frame_free(&in);
-    } else {
-        out = in;
     }
 
     c->frame_idx++;
     av_log(ctx, AV_LOG_VERBOSE, "filter_frame end\n");
-    return ff_filter_frame(outlink, out);
+    return ff_filter_frame(outlink, in);
 }
 
 
