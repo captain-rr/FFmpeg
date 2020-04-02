@@ -1073,7 +1073,7 @@ static av_cold void uninit_transition(AVFilterContext *ctx) {
 }
 
 static int config_input_props(AVFilterLink *inlink) {
-	int ret;
+	int ret, windowW, windowH;
 	AVFilterContext     *ctx;
 	GLSLContext *c;
 
@@ -1091,7 +1091,10 @@ static int config_input_props(AVFilterLink *inlink) {
 		av_log(ctx, AV_LOG_ERROR, "setup_gl ERROR");
 		return -1;
 	}
-	av_log(ctx, AV_LOG_DEBUG, "config_input_props 4\n");
+    glfwSetWindowSizeLimits(c->window, -1, -1, -1, -1);
+    glfwSetWindowSize(c->window, inlink->w, inlink->h);
+    glfwGetWindowSize(c->window, &windowW, &windowH);
+    av_log(ctx, AV_LOG_INFO, "config_input_props 4 %dx%d \n", windowW, windowH);
 	glfwMakeContextCurrent(c->window);
 	av_log(ctx, AV_LOG_DEBUG, "config_input_props 5\n");
 
@@ -1103,7 +1106,8 @@ static int config_input_props(AVFilterLink *inlink) {
 	av_log(ctx, AV_LOG_DEBUG, "config_input_props 6\n");
 	glViewport(0, 0, inlink->w, inlink->h);
 
-	av_log(ctx, AV_LOG_DEBUG, "config_input_props 7\n");
+    glfwGetWindowSize(c->window, &windowW, &windowH);
+	av_log(ctx, AV_LOG_DEBUG, "config_input_props 7 %dx%d \n", windowW, windowH);
 	if ((ret = build_program(ctx)) < 0) {
 		return ret;
 	}
