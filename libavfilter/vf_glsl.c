@@ -1107,7 +1107,7 @@ static int config_input_props(AVFilterLink *inlink) {
 	glViewport(0, 0, inlink->w, inlink->h);
 
     glfwGetWindowSize(c->window, &windowW, &windowH);
-	av_log(ctx, AV_LOG_DEBUG, "config_input_props 7 %dx%d \n", windowW, windowH);
+	av_log(ctx, AV_LOG_INFO, "config_input_props 7 %dx%d \n", windowW, windowH);
 	if ((ret = build_program(ctx)) < 0) {
 		return ret;
 	}
