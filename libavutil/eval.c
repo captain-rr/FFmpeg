@@ -162,7 +162,7 @@ struct AVExpr {
         e_pow, e_mul, e_div, e_add,
         e_last, e_st, e_while, e_taylor, e_root, e_floor, e_ceil, e_trunc, e_round,
         e_sqrt, e_not, e_random, e_hypot, e_gcd,
-        e_if, e_ifnot, e_print, e_bitand, e_bitor, e_between, e_clip, e_atan2, e_lerp,
+        e_if, e_ifnot, e_print, e_bitand, e_bitor, e_between, e_between2, e_between3, e_clip, e_atan2, e_lerp,
         e_sgn, e_easein_sine, e_easeout_sine, e_easeinout_sine,
         e_easein_quart, e_easeout_quart, e_easeinout_quart,
     } type;
@@ -216,6 +216,16 @@ static double eval_expr(Parser *p, AVExpr *e)
         case e_between: {
             double d = eval_expr(p, e->param[0]);
             return e->value * (d >= eval_expr(p, e->param[1]) &&
+                               d <= eval_expr(p, e->param[2]));
+        }
+        case e_between2: {
+            double d = eval_expr(p, e->param[0]);
+            return e->value * (d >= eval_expr(p, e->param[1]) &&
+                               d <  eval_expr(p, e->param[2]));
+        }
+        case e_between3: {
+            double d = eval_expr(p, e->param[0]);
+            return e->value * (d >  eval_expr(p, e->param[1]) &&
                                d <= eval_expr(p, e->param[2]));
         }
         case e_lerp: {
@@ -529,6 +539,8 @@ static int parse_primary(AVExpr **e, Parser *p)
     else if (strmatch(next, "bitand")) d->type = e_bitand;
     else if (strmatch(next, "bitor" )) d->type = e_bitor;
     else if (strmatch(next, "between"))d->type = e_between;
+    else if (strmatch(next, "gtelt" )) d->type = e_between2;
+    else if (strmatch(next, "gtlte" )) d->type = e_between3;
     else if (strmatch(next, "clip"  )) d->type = e_clip;
     else if (strmatch(next, "atan2" )) d->type = e_atan2;
     else if (strmatch(next, "lerp"  )) d->type = e_lerp;
@@ -737,6 +749,8 @@ static int verify_expr(AVExpr *e)
             return verify_expr(e->param[0]) && verify_expr(e->param[1])
                    && (!e->param[2] || verify_expr(e->param[2]));
         case e_between:
+        case e_between2:
+        case e_between3:
         case e_clip:
         case e_lerp:
             return verify_expr(e->param[0]) &&
