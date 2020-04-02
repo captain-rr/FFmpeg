@@ -1317,7 +1317,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
         glPixelStorei(GL_PACK_ROW_LENGTH, in->linesize[0] / 3);
-        glReadPixels(0, 0, outLink->w, outLink->h, PIXEL_FORMAT, GL_UNSIGNED_BYTE, (GLvoid *)in->data[0]);
+        glReadPixels(0, 0, outlink->w, outlink->h, PIXEL_FORMAT, GL_UNSIGNED_BYTE, (GLvoid *)in->data[0]);
 
         glPixelStorei(GL_PACK_ROW_LENGTH, 0);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
