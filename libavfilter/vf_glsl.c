@@ -1304,9 +1304,25 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 		}
 	}
     if (skipRender == 0) {
+//        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, in->data[0]);
+//        glDrawArrays(GL_TRIANGLES, 0, 6);
+//        glReadPixels(0, 0, outlink->w, outlink->h, PIXEL_FORMAT, GL_UNSIGNED_BYTE, (GLvoid *)in->data[0]);
+
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, c->frame_tex);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, in->linesize[0] / 3);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, inlink->w, inlink->h, 0, PIXEL_FORMAT, GL_UNSIGNED_BYTE, in->data[0]);
+
         glDrawArrays(GL_TRIANGLES, 0, 6);
-        glReadPixels(0, 0, outlink->w, outlink->h, PIXEL_FORMAT, GL_UNSIGNED_BYTE, (GLvoid *)in->data[0]);
+        glPixelStorei(GL_PACK_ROW_LENGTH, in->linesize[0] / 3);
+        glReadPixels(0, 0, outLink->w, outLink->h, PIXEL_FORMAT, GL_UNSIGNED_BYTE, (GLvoid *)in->data[0]);
+
+        glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+
         av_log(ctx, AV_LOG_VERBOSE, "filter_frame render %d%d -> %dx%d\n", inlink->w, inlink->h, outlink->w, outlink->h);
     }
 
