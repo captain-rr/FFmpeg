@@ -1083,6 +1083,7 @@ static int config_input_props(AVFilterLink *inlink) {
 	av_log(ctx, AV_LOG_DEBUG, "config_input_props\n");
 	//glfw
 	glfwWindowHint(GLFW_VISIBLE, 0);
+    glfwWindowHint(GLFW_SCALE_TO_MONITOR, 0);
 	av_log(ctx, AV_LOG_INFO, "config_input_props 2 %dx%d\n", inlink->w, inlink->h);
 	c->window = glfwCreateWindow(inlink->w, inlink->h, "", NULL, NULL);
 	av_log(ctx, AV_LOG_DEBUG, "config_input_props 3\n");
@@ -1209,7 +1210,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 	AVFilterContext *ctx;
 	AVFilterLink    *outlink;
 	GLSLContext *c;
-	int skipRender;
+	int skipRender, windowW, windowH;
     
 	ctx     = inlink->dst;
     outlink = ctx->outputs[0];
@@ -1218,8 +1219,10 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 
     av_log(ctx, AV_LOG_VERBOSE, "filter_frame\n");
 
+    glfwSetWindowSize(c->window, inlink->w, inlink->h);
     glfwMakeContextCurrent(c->window);
 	glUseProgram(c->program);
+    glfwGetWindowSize(c->window, &windowW, &windowH);
 
     if (c->eval_mode == EVAL_MODE_FRAME) {
       int64_t pos = in->pkt_pos;
@@ -1323,7 +1326,10 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
         glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 
-        av_log(ctx, AV_LOG_VERBOSE, "filter_frame render %d%d -> %dx%d\n", inlink->w, inlink->h, outlink->w, outlink->h);
+        av_log(ctx, AV_LOG_VERBOSE, "filter_frame render %dx%d (%dx%d) -> %dx%d\n",
+                inlink->w, inlink->h,
+                windowW, windowH,
+                outlink->w, outlink->h);
     }
 
     c->frame_idx++;
