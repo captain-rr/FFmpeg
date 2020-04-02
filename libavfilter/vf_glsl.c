@@ -1210,7 +1210,8 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 	AVFilterContext *ctx;
 	AVFilterLink    *outlink;
 	GLSLContext *c;
-	int skipRender, windowW, windowH;
+	int skipRender, windowW, windowH, wfbW, wfbH;
+	float wsX, wsY;
     
 	ctx     = inlink->dst;
     outlink = ctx->outputs[0];
@@ -1223,6 +1224,12 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
     glfwMakeContextCurrent(c->window);
 	glUseProgram(c->program);
     glfwGetWindowSize(c->window, &windowW, &windowH);
+    glfwGetFramebufferSize(c->window, &wfbW, &wfbH);
+    glfwGetWindowContentScale(c->window, &wsX, &wsY);
+
+    av_log(ctx, AV_LOG_VERBOSE, "filter_frame pre-render %dx%d * %f:%f \n",
+           wfbW, wfbH,
+           wsX, wsY);
 
     if (c->eval_mode == EVAL_MODE_FRAME) {
       int64_t pos = in->pkt_pos;
