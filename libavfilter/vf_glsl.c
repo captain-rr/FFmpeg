@@ -1083,7 +1083,7 @@ static int config_input_props(AVFilterLink *inlink) {
 	av_log(ctx, AV_LOG_DEBUG, "config_input_props\n");
 	//glfw
 	glfwWindowHint(GLFW_VISIBLE, 0);
-    glfwWindowHint(GLFW_SCALE_TO_MONITOR, 0);
+    glfwWindowHint(GLFW_SCALE_TO_MONITOR, 1);
 	av_log(ctx, AV_LOG_INFO, "config_input_props 2 %dx%d\n", inlink->w, inlink->h);
 	c->window = glfwCreateWindow(inlink->w, inlink->h, "", NULL, NULL);
 	av_log(ctx, AV_LOG_DEBUG, "config_input_props 3\n");
