@@ -101,6 +101,8 @@ typedef struct ZPcontext {
 
 #define OFFSET(x) offsetof(ZPContext, x)
 #define FLAGS AV_OPT_FLAG_VIDEO_PARAM|AV_OPT_FLAG_FILTERING_PARAM
+#define TS2T(ts, tb) ((ts) == AV_NOPTS_VALUE ? NAN : (double)(ts) * av_q2d(tb))
+
 static const AVOption zoompan_options[] = {
     { "zoom", "set the zoom expression", OFFSET(zoom_expr_str), AV_OPT_TYPE_STRING, {.str = "1" }, .flags = FLAGS },
     { "z", "set the zoom expression", OFFSET(zoom_expr_str), AV_OPT_TYPE_STRING, {.str = "1" }, .flags = FLAGS },
@@ -155,6 +157,7 @@ static int output_single_frame(AVFilterContext *ctx, AVFrame *in, double *var_va
 {
     ZPContext *s = ctx->priv;
     AVFilterLink *outlink = ctx->outputs[0];
+    AVFilterLink *inlink = ctx->inputs[0];
     int k, x, y, w, h, ret = 0;
     uint8_t *input[4];
     int px[4], py[4];
