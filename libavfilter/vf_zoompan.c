@@ -164,7 +164,7 @@ static int output_single_frame(AVFilterContext *ctx, AVFrame *in, double *var_va
     var_values[VAR_PY]    = s->y;
     var_values[VAR_PZOOM] = s->prev_zoom;
     var_values[VAR_PDURATION] = s->prev_nb_frames;
-    var_values[VAR_TIME] = in->pts == AV_NOPTS_VALUE ? NAN : in->pts * av_q2d(outlink->time_base);
+    var_values[VAR_TIME] = in->pts == AV_NOPTS_VALUE ? NAN : TS2T(in->pts, inlink->time_base);
     var_values[VAR_FRAME] = i;
     var_values[VAR_ON] = outlink->frame_count_in;
 
