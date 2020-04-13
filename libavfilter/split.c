@@ -80,9 +80,8 @@ static av_cold void split_uninit(AVFilterContext *ctx)
     int i;
     SplitContext       *s = ctx->priv;
 
-    if (s->prev_frame != NULL){
+    if (s->prev_frame) {
         av_frame_free(&s->prev_frame);
-        s->prev_frame = NULL;
     }
     for (i = 0; i < ctx->nb_outputs; i++)
         av_freep(&ctx->output_pads[i].name);
@@ -150,8 +149,7 @@ static int filter_frame_timesplit(AVFilterLink *inlink, AVFrame *frame)
             AVFrame *dupOfPreviousFrame = av_frame_clone(s->prev_frame);
             dupOfPreviousFrame->pts = 0;
             ff_filter_frame(ctx->outputs[1], dupOfPreviousFrame);
-            av_frame_free(&s->prev_frame);
-            s->prev_frame = NULL;
+            av_frame_unref(s->prev_frame);
         }
 
         i = 1;
@@ -164,14 +162,20 @@ static int filter_frame_timesplit(AVFilterLink *inlink, AVFrame *frame)
         i = 0;
         if (s->prev_frame != NULL) {
             av_log(ctx, AV_LOG_DEBUG, "freeing previous frame %d %d\n", frame->pts, s->time_pts);
-            av_frame_free(&s->prev_frame);
-            s->prev_frame = NULL;
+            av_frame_unref(s->prev_frame);
         }
         else {
             av_log(ctx, AV_LOG_DEBUG, "not freeing previous frame %d %d\n", frame->pts, s->time_pts);
+            s->prev_frame = av_frame_alloc();
+            if (!s->prev_frame) {
+                av_frame_free(&s->prev_frame);
+                return AVERROR(ENOMEM);
+            }
         }
         ret = av_frame_ref(s->prev_frame, frame);
         if (ret < 0) {
+            av_log(ctx, AV_LOG_DEBUG, "failed creating ref %d\n", ret);
+            av_frame_unref(s->prev_frame);
             return ret;
         }
     }
@@ -206,8 +210,7 @@ static int filter_frame_atimesplit(AVFilterLink *inlink, AVFrame *frame)
             AVFrame *dupOfPreviousFrame = av_frame_clone(s->prev_frame);
             dupOfPreviousFrame->pts = 0;
             ff_filter_frame(ctx->outputs[1], dupOfPreviousFrame);
-            av_frame_free(&s->prev_frame);
-            s->prev_frame = NULL;
+            av_frame_unref(s->prev_frame);
         }
 
         i = 1;
@@ -220,14 +223,20 @@ static int filter_frame_atimesplit(AVFilterLink *inlink, AVFrame *frame)
         i = 0;
         if (s->prev_frame != NULL) {
             av_log(ctx, AV_LOG_DEBUG, "freeing previous frame %d %d %d\n", frame->pts, pts, s->time_pts);
-            av_frame_free(&s->prev_frame);
-            s->prev_frame = NULL;
+            av_frame_unref(s->prev_frame);
         }
         else {
             av_log(ctx, AV_LOG_DEBUG, "not freeing previous frame %d %d %d\n", frame->pts, pts, s->time_pts);
+            s->prev_frame = av_frame_alloc();
+            if (!s->prev_frame) {
+                av_frame_free(&s->prev_frame);
+                return AVERROR(ENOMEM);
+            }
         }
         ret = av_frame_ref(s->prev_frame, frame);
         if (ret < 0) {
+            av_log(ctx, AV_LOG_DEBUG, "failed creating ref %d\n", ret);
+            av_frame_unref(s->prev_frame);
             return ret;
         }
     }
