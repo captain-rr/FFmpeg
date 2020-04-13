@@ -70,6 +70,8 @@ static av_cold int split_init(AVFilterContext *ctx)
         }
     }
 
+    s->prev_frame = NULL;
+
     return 0;
 }
 
@@ -78,7 +80,7 @@ static av_cold void split_uninit(AVFilterContext *ctx)
     int i;
     SplitContext       *s = ctx->priv;
 
-    if (s->prev_frame){
+    if (s->prev_frame != NULL){
         av_frame_free(&s->prev_frame);
         s->prev_frame = NULL;
     }
@@ -160,7 +162,8 @@ static int filter_frame_timesplit(AVFilterLink *inlink, AVFrame *frame)
     else {
         av_log(ctx, AV_LOG_DEBUG, "writing to output[0] %d %d\n", frame->pts, s->time_pts);
         i = 0;
-        if (s->prev_frame) {
+        if (s->prev_frame != NULL) {
+            av_log(ctx, AV_LOG_DEBUG, "freeing previous frame %d %d\n", frame->pts, s->time_pts);
             av_frame_free(&s->prev_frame);
             s->prev_frame = NULL;
         }
@@ -209,7 +212,8 @@ static int filter_frame_atimesplit(AVFilterLink *inlink, AVFrame *frame)
     else {
         av_log(ctx, AV_LOG_DEBUG, "writing to output[0] %d %d %d\n", frame->pts, pts, s->time_pts);
         i = 0;
-        if (s->prev_frame) {
+        if (s->prev_frame != NULL) {
+            av_log(ctx, AV_LOG_DEBUG, "freeing previous frame %d %d %d\n", frame->pts, pts, s->time_pts);
             av_frame_free(&s->prev_frame);
             s->prev_frame = NULL;
         }
