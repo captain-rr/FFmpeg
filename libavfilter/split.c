@@ -47,6 +47,8 @@ typedef struct SplitContext {
     int64_t time_pts;
     int eof;
     int64_t next_pts;
+    AVFrame *prev_frame;
+    int64_t start_pts;
 } SplitContext;
 
 static av_cold int split_init(AVFilterContext *ctx)
@@ -74,7 +76,12 @@ static av_cold int split_init(AVFilterContext *ctx)
 static av_cold void split_uninit(AVFilterContext *ctx)
 {
     int i;
+    SplitContext       *s = ctx->priv;
 
+    if (s->prev_frame){
+        av_frame_free(&s->prev_frame);
+        s->prev_frame = NULL;
+    }
     for (i = 0; i < ctx->nb_outputs; i++)
         av_freep(&ctx->output_pads[i].name);
 }
@@ -128,18 +135,36 @@ static int filter_frame_timesplit(AVFilterLink *inlink, AVFrame *frame)
 
     if (s->eof){
         av_log(ctx, AV_LOG_DEBUG, "already in output[0] eof\n");
+        frame->pts = frame->pts - s->time_pts;
         return ff_filter_frame(ctx->outputs[1], frame);
     }
 
     if (frame->pts != AV_NOPTS_VALUE &&
         frame->pts >= s->time_pts) {
+        // the first frame to push into the second stream isn't timed exactly as we wanted,
+        // take the previous frame already pushed to the first stream, duplicate it,
+        // set the duplicate's pts to the exact time and then push it to the second stream
+        if (frame->pts > s->time_pts && s->prev_frame) {
+            AVFrame *dupOfPreviousFrame = av_frame_clone(s->prev_frame);
+            dupOfPreviousFrame->pts = 0;
+            ff_filter_frame(ctx->outputs[1], dupOfPreviousFrame);
+            av_frame_free(&s->prev_frame);
+            s->prev_frame = NULL;
+        }
+
         i = 1;
         s->eof = 1;
         av_log(ctx, AV_LOG_DEBUG, "setting output[0] eof %d %d\n", frame->pts, s->time_pts);
+        frame->pts = frame->pts - s->time_pts;
     }
     else {
         av_log(ctx, AV_LOG_DEBUG, "writing to output[0] %d %d\n", frame->pts, s->time_pts);
         i = 0;
+        if (s->prev_frame) {
+            av_frame_free(&s->prev_frame);
+            s->prev_frame = NULL;
+        }
+        av_frame_ref(s->prev_frame, frame);
     }
 
     return ff_filter_frame(ctx->outputs[i], frame);
@@ -173,6 +198,11 @@ static int filter_frame_atimesplit(AVFilterLink *inlink, AVFrame *frame)
     else {
         av_log(ctx, AV_LOG_DEBUG, "writing to output[0] %d %d %d\n", frame->pts, pts, s->time_pts);
         i = 0;
+        if (s->prev_frame) {
+            av_frame_free(&s->prev_frame);
+            s->prev_frame = NULL;
+        }
+        av_frame_ref(s->prev_frame, frame);
     }
 
     return ff_filter_frame(ctx->outputs[i], frame);
