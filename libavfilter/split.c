@@ -186,14 +186,25 @@ static int filter_frame_atimesplit(AVFilterLink *inlink, AVFrame *frame)
 
     if (s->eof){
         av_log(ctx, AV_LOG_DEBUG, "already in output[0] eof\n");
+        frame->pts = pts - s->time_pts;
         return ff_filter_frame(ctx->outputs[1], frame);
     }
 
     if (pts != AV_NOPTS_VALUE &&
         pts >= s->time_pts) {
+
+        if (pts > s->time_pts && s->prev_frame) {
+            AVFrame *dupOfPreviousFrame = av_frame_clone(s->prev_frame);
+            dupOfPreviousFrame->pts = 0;
+            ff_filter_frame(ctx->outputs[1], dupOfPreviousFrame);
+            av_frame_free(&s->prev_frame);
+            s->prev_frame = NULL;
+        }
+
         i = 1;
         s->eof = 1;
         av_log(ctx, AV_LOG_DEBUG, "setting output[0] eof %d %d %d\n", frame->pts, pts, s->time_pts);
+        frame->pts = pts - s->time_pts;
     }
     else {
         av_log(ctx, AV_LOG_DEBUG, "writing to output[0] %d %d %d\n", frame->pts, pts, s->time_pts);
