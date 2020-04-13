@@ -133,7 +133,7 @@ static int filter_frame_timesplit(AVFilterLink *inlink, AVFrame *frame)
 {
     AVFilterContext *ctx  = inlink->dst;
     SplitContext       *s = ctx->priv;
-    int i;
+    int i, ret;
 
     if (s->eof){
         av_log(ctx, AV_LOG_DEBUG, "already in output[0] eof\n");
@@ -167,7 +167,13 @@ static int filter_frame_timesplit(AVFilterLink *inlink, AVFrame *frame)
             av_frame_free(&s->prev_frame);
             s->prev_frame = NULL;
         }
-        av_frame_ref(s->prev_frame, frame);
+        else {
+            av_log(ctx, AV_LOG_DEBUG, "not freeing previous frame %d %d\n", frame->pts, s->time_pts);
+        }
+        ret = av_frame_ref(s->prev_frame, frame);
+        if (ret < 0) {
+            return ret;
+        }
     }
 
     return ff_filter_frame(ctx->outputs[i], frame);
@@ -178,7 +184,7 @@ static int filter_frame_atimesplit(AVFilterLink *inlink, AVFrame *frame)
     AVFilterContext *ctx  = inlink->dst;
     SplitContext       *s = ctx->priv;
     int64_t pts;
-    int i;
+    int i, ret;
 
     if (frame->pts != AV_NOPTS_VALUE)
         pts = av_rescale_q(frame->pts, inlink->time_base,
@@ -217,7 +223,13 @@ static int filter_frame_atimesplit(AVFilterLink *inlink, AVFrame *frame)
             av_frame_free(&s->prev_frame);
             s->prev_frame = NULL;
         }
-        av_frame_ref(s->prev_frame, frame);
+        else {
+            av_log(ctx, AV_LOG_DEBUG, "not freeing previous frame %d %d %d\n", frame->pts, pts, s->time_pts);
+        }
+        ret = av_frame_ref(s->prev_frame, frame);
+        if (ret < 0) {
+            return ret;
+        }
     }
 
     return ff_filter_frame(ctx->outputs[i], frame);
