@@ -1009,7 +1009,7 @@ static int blend_frame(FFFrameSync *fs)
 
 static av_cold int init_transition(AVFilterContext *ctx)
 {
-	int err, status;
+	int err, status, len;
 	GLSLContext *c;
 	char *transition_function;
 
@@ -1028,7 +1028,7 @@ static av_cold int init_transition(AVFilterContext *ctx)
 		transition_function = f_default_transition_source;
 	}
 
-	int len = strlen(f_transition_shader_template) + strlen((char *)transition_function);
+	len = strlen(f_transition_shader_template) + strlen((char *)transition_function);
 	c->f_shader_source = av_calloc(len, sizeof(*c->f_shader_source));
 	if (!c->f_shader_source) {
 		av_log(ctx, AV_LOG_ERROR, "failed allocation f_shader_source\n");
@@ -1092,7 +1092,7 @@ static int config_input_props(AVFilterLink *inlink) {
 		return -1;
 	}
 
-#if defined(_WIN32) && HAVE_ADJUSTWINDOWRECTEXFORDPI
+#if defined(_WIN32)
     av_log(ctx, AV_LOG_INFO, "config_input_props 4\n");
 
 	WINDOWPLACEMENT wp = { sizeof(wp) };
@@ -1186,13 +1186,13 @@ static int config_transition_output(AVFilterLink *outLink)
 	AVFilterContext *ctx;
 	GLSLContext *c;
 	AVFilterLink *fromLink, *toLink;
+    int ret;
 
 	ctx = outLink->src;
 	av_log(ctx, AV_LOG_DEBUG, "config_transition_output\n");
 	c = ctx->priv;
 	fromLink = ctx->inputs[FROM];
 	toLink = ctx->inputs[TO];
-	int ret;
 
 	if (fromLink->format != toLink->format) {
 		av_log(ctx, AV_LOG_ERROR, "inputs must be of same pixel format\n");
