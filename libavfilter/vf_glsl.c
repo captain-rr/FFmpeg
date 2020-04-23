@@ -3,7 +3,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "internal.h"
+#include <windows.h>
 #include <winuser.h>
+#include <windef.h>
 
 #include "avfilter.h"
 #include "formats.h"
@@ -1101,7 +1103,8 @@ static int config_input_props(AVFilterLink *inlink) {
     DWORD styleEx = WS_EX_APPWINDOW;
     UNIT dpi = 96;
 
-    AdjustWindowRectExForDpi(&rect, style, false, styleEx, dpi);
+//    AdjustWindowRectExForDpi(&rect, style, FALSE, styleEx, dpi);
+    AdjustWindowRectEx(&rect, style, FALSE, styleEx);
 
     GetWindowPlacement(c->window->win32.handle, &wp);
     wp.rcNormalPosition = rect;
