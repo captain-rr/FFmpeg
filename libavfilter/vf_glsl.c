@@ -1104,7 +1104,7 @@ static int config_input_props(AVFilterLink *inlink) {
 //    UINT dpi = 96;
 
 //    AdjustWindowRectExForDpi(&rect, style, FALSE, styleEx, dpi);
-    AdjustWindowRectEx(&rect, style, FALSE, styleEx);
+//    AdjustWindowRectEx(&rect, style, FALSE, styleEx);
 
     HWND w32Window = FindWindowA("GLFW30", "ffmpeg-gl");
     if (w32Window == NULL){
