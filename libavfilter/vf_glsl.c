@@ -1076,7 +1076,8 @@ static av_cold void uninit_transition(AVFilterContext *ctx) {
 }
 
 static int config_input_props(AVFilterLink *inlink) {
-	int ret;
+	int ret, width, height, windowW, windowH, wfbW, wfbH;
+    float xScale, yScale;
 	AVFilterContext     *ctx;
 	GLSLContext *c;
 
@@ -1087,35 +1088,45 @@ static int config_input_props(AVFilterLink *inlink) {
 	//glfw
 	glfwWindowHint(GLFW_VISIBLE, 0);
 	av_log(ctx, AV_LOG_INFO, "config_input_props 2 %dx%d\n", inlink->w, inlink->h);
-	c->window = glfwCreateWindow(inlink->w, inlink->h, "ffmpeg-gl", NULL, NULL);
-	av_log(ctx, AV_LOG_DEBUG, "config_input_props 3\n");
+    GLFWmonitor *monitor = glfwGetPrimaryMonitor();
+    glfwGetMonitorContentScale(monitor, &xScale, &yScale);
+    width = inlink->w * xScale;
+    height = inlink->h * yScale;
+	c->window = glfwCreateWindow(width, height, "ffmpeg-gl", NULL, NULL);
+    glfwGetWindowSize(c->window, &windowW, &windowH);
+    glfwGetFramebufferSize(c->window, &wfbW, &wfbH);
+	av_log(ctx, AV_LOG_INFO, "config_input_props 3 %dx%d (%f:%f) -> %dx%d | %dx%d\n",
+	        width, height,
+	        xScale, yScale,
+	        windowW, windowH,
+	        wfbW, wfbH);
 	if (!c->window) {
 		av_log(ctx, AV_LOG_ERROR, "setup_gl ERROR");
 		return -1;
 	}
 
-#if defined(_WIN32)
-    av_log(ctx, AV_LOG_INFO, "config_input_props 4\n");
-
-	WINDOWPLACEMENT wp = { sizeof(wp) };
-    RECT rect = { 0, 0, inlink->w, inlink->h };
-    DWORD style = WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP;
-    DWORD styleEx = WS_EX_APPWINDOW;
-//    UINT dpi = 96;
-
-//    AdjustWindowRectExForDpi(&rect, style, FALSE, styleEx, dpi);
-//    AdjustWindowRectEx(&rect, style, FALSE, styleEx);
-
-    HWND w32Window = FindWindowA("GLFW30", "ffmpeg-gl");
-    if (w32Window == NULL){
-        av_log(ctx, AV_LOG_INFO, "config_input_props 4.findWindow failed\n");
-    } else {
-        GetWindowPlacement(w32Window, &wp);
-        wp.rcNormalPosition = rect;
-        wp.showCmd = SW_HIDE;
-        SetWindowPlacement(w32Window, &wp);
-    }
-#endif
+//#if defined(_WIN32)
+//    av_log(ctx, AV_LOG_INFO, "config_input_props 4\n");
+//
+//	WINDOWPLACEMENT wp = { sizeof(wp) };
+//    RECT rect = { 0, 0, inlink->w, inlink->h };
+//    DWORD style = WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP;
+//    DWORD styleEx = WS_EX_APPWINDOW;
+////    UINT dpi = 96;
+//
+////    AdjustWindowRectExForDpi(&rect, style, FALSE, styleEx, dpi);
+////    AdjustWindowRectEx(&rect, style, FALSE, styleEx);
+//
+//    HWND w32Window = FindWindowA("GLFW30", "ffmpeg-gl");
+//    if (w32Window == NULL){
+//        av_log(ctx, AV_LOG_INFO, "config_input_props 4.findWindow failed\n");
+//    } else {
+//        GetWindowPlacement(w32Window, &wp);
+//        wp.rcNormalPosition = rect;
+//        wp.showCmd = SW_HIDE;
+//        SetWindowPlacement(w32Window, &wp);
+//    }
+//#endif
 
 	glfwMakeContextCurrent(c->window);
 	av_log(ctx, AV_LOG_DEBUG, "config_input_props 5\n");
