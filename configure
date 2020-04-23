@@ -6495,6 +6495,9 @@ check_headers sys/videoio.h
 test_code cc sys/videoio.h "struct v4l2_frmsizeenum vfse; vfse.discrete.width = 0;" && enable_sanitized struct_v4l2_frmivalenum_discrete
 
 check_lib user32 "windows.h winuser.h" GetShellWindow -luser32
+check_lib user32 "windows.h winuser.h" AdjustWindowRectExForDpi -luser32
+check_lib user32 "windows.h winuser.h" GetWindowPlacement -luser32
+check_lib user32 "windows.h winuser.h" SetWindowPlacement -luser32
 check_lib vfw32 "windows.h vfw.h" capCreateCaptureWindow -lvfw32
 # check that WM_CAP_DRIVER_CONNECT is defined to the proper value
 # w32api 3.12 had it defined wrong

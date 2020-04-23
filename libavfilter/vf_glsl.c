@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "internal.h"
+#include <winuser.h>
 
 #include "avfilter.h"
 #include "formats.h"
@@ -1073,7 +1074,7 @@ static av_cold void uninit_transition(AVFilterContext *ctx) {
 }
 
 static int config_input_props(AVFilterLink *inlink) {
-	int ret, windowW, windowH;
+	int ret;
 	AVFilterContext     *ctx;
 	GLSLContext *c;
 
@@ -1083,7 +1084,6 @@ static int config_input_props(AVFilterLink *inlink) {
 	av_log(ctx, AV_LOG_DEBUG, "config_input_props\n");
 	//glfw
 	glfwWindowHint(GLFW_VISIBLE, 0);
-    glfwWindowHint(GLFW_SCALE_TO_MONITOR, 1);
 	av_log(ctx, AV_LOG_INFO, "config_input_props 2 %dx%d\n", inlink->w, inlink->h);
 	c->window = glfwCreateWindow(inlink->w, inlink->h, "", NULL, NULL);
 	av_log(ctx, AV_LOG_DEBUG, "config_input_props 3\n");
@@ -1091,10 +1091,24 @@ static int config_input_props(AVFilterLink *inlink) {
 		av_log(ctx, AV_LOG_ERROR, "setup_gl ERROR");
 		return -1;
 	}
-    glfwSetWindowSizeLimits(c->window, -1, -1, -1, -1);
-    glfwSetWindowSize(c->window, inlink->w, inlink->h);
-    glfwGetWindowSize(c->window, &windowW, &windowH);
-    av_log(ctx, AV_LOG_INFO, "config_input_props 4 %dx%d \n", windowW, windowH);
+
+#if defined(_WIN32) && HAVE_ADJUSTWINDOWRECTEXFORDPI
+    av_log(ctx, AV_LOG_INFO, "config_input_props 4\n");
+
+	WINDOWPLACEMENT wp = { sizeof(wp) };
+    RECT rect = { 0, 0, inlink->w, inlink->h };
+    DWORD style = WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP;
+    DWORD styleEx = WS_EX_APPWINDOW;
+    UNIT dpi = 96;
+
+    AdjustWindowRectExForDpi(&rect, style, false, styleEx, dpi);
+
+    GetWindowPlacement(c->window->win32.handle, &wp);
+    wp.rcNormalPosition = rect;
+    wp.showCmd = SW_HIDE;
+    SetWindowPlacement(c->window->win32.handle, &wp);
+#endif
+
 	glfwMakeContextCurrent(c->window);
 	av_log(ctx, AV_LOG_DEBUG, "config_input_props 5\n");
 
@@ -1106,8 +1120,6 @@ static int config_input_props(AVFilterLink *inlink) {
 	av_log(ctx, AV_LOG_DEBUG, "config_input_props 6\n");
 	glViewport(0, 0, inlink->w, inlink->h);
 
-    glfwGetWindowSize(c->window, &windowW, &windowH);
-	av_log(ctx, AV_LOG_INFO, "config_input_props 7 %dx%d \n", windowW, windowH);
 	if ((ret = build_program(ctx)) < 0) {
 		return ret;
 	}
@@ -1214,9 +1226,8 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 	AVFilterContext *ctx;
 	AVFilterLink    *outlink;
 	GLSLContext *c;
-	int skipRender, windowW, windowH, wfbW, wfbH;
-	float wsX, wsY;
-    
+	int skipRender;
+
 	ctx     = inlink->dst;
     outlink = ctx->outputs[0];
     c = ctx->priv;
@@ -1224,16 +1235,8 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
 
     av_log(ctx, AV_LOG_VERBOSE, "filter_frame\n");
 
-    glfwSetWindowSize(c->window, inlink->w, inlink->h);
     glfwMakeContextCurrent(c->window);
 	glUseProgram(c->program);
-    glfwGetWindowSize(c->window, &windowW, &windowH);
-    glfwGetFramebufferSize(c->window, &wfbW, &wfbH);
-    glfwGetWindowContentScale(c->window, &wsX, &wsY);
-
-    av_log(ctx, AV_LOG_VERBOSE, "filter_frame pre-render %dx%d * %f:%f \n",
-           wfbW, wfbH,
-           wsX, wsY);
 
     if (c->eval_mode == EVAL_MODE_FRAME) {
       int64_t pos = in->pkt_pos;
@@ -1336,11 +1339,6 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in) {
         glPixelStorei(GL_PACK_ROW_LENGTH, 0);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-
-        av_log(ctx, AV_LOG_VERBOSE, "filter_frame render %dx%d (%dx%d) -> %dx%d\n",
-                inlink->w, inlink->h,
-                windowW, windowH,
-                outlink->w, outlink->h);
     }
 
     c->frame_idx++;
